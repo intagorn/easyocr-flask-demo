@@ -1,0 +1,222 @@
+{
+  "bank_code": "krungthai",
+  "template_name": "Krungthai transfer slip layout 2026 example",
+  "version_label": "v1",
+  "status": "draft",
+  "description": "Example imported template JSON. Coordinates are approximate; adjust in Template Manager if needed.",
+  "optional_keywords": [
+    "Krungthai",
+    "กรุงไทย",
+    "โอนเงินสำเร็จ"
+  ],
+  "anchors": [
+    {
+      "anchor_name": "bank_logo",
+      "anchor_type": "logo_area",
+      "expected_keywords": [
+        "Krungthai",
+        "กรุงไทย"
+      ],
+      "required": true,
+      "weight": 1.5,
+      "box": [
+        0.33,
+        0.04,
+        0.7,
+        0.15
+      ]
+    },
+    {
+      "anchor_name": "success_text",
+      "anchor_type": "success_text",
+      "expected_keywords": [
+        "โอนเงินสำเร็จ"
+      ],
+      "required": true,
+      "weight": 1.5,
+      "box": [
+        0.16,
+        0.17,
+        0.58,
+        0.24
+      ]
+    },
+    {
+      "anchor_name": "from_label",
+      "anchor_type": "text_label",
+      "expected_keywords": [
+        "จาก"
+      ],
+      "required": false,
+      "weight": 1.0,
+      "box": [
+        0.2,
+        0.31,
+        0.31,
+        0.36
+      ]
+    },
+    {
+      "anchor_name": "to_label",
+      "anchor_type": "text_label",
+      "expected_keywords": [
+        "ไปยัง"
+      ],
+      "required": false,
+      "weight": 1.0,
+      "box": [
+        0.2,
+        0.53,
+        0.34,
+        0.59
+      ]
+    },
+    {
+      "anchor_name": "amount_label",
+      "anchor_type": "text_label",
+      "expected_keywords": [
+        "จำนวนเงิน"
+      ],
+      "required": false,
+      "weight": 1.0,
+      "box": [
+        0.04,
+        0.77,
+        0.25,
+        0.82
+      ]
+    }
+  ],
+  "fields": [
+    {
+      "field_name": "reference_id",
+      "display_name": "รหัสอ้างอิง",
+      "field_type": "text",
+      "required": true,
+      "crop_margin": 0.01,
+      "box": [
+        0.31,
+        0.25,
+        0.82,
+        0.29
+      ]
+    },
+    {
+      "field_name": "sender_name",
+      "display_name": "ชื่อผู้โอน",
+      "field_type": "thai_name",
+      "required": true,
+      "crop_margin": 0.01,
+      "box": [
+        0.2,
+        0.36,
+        0.66,
+        0.42
+      ]
+    },
+    {
+      "field_name": "sender_bank",
+      "display_name": "ธนาคารผู้โอน",
+      "field_type": "bank_name",
+      "required": false,
+      "crop_margin": 0.01,
+      "box": [
+        0.2,
+        0.42,
+        0.46,
+        0.47
+      ]
+    },
+    {
+      "field_name": "sender_account",
+      "display_name": "บัญชีผู้โอน",
+      "field_type": "account_mask",
+      "required": true,
+      "crop_margin": 0.01,
+      "box": [
+        0.2,
+        0.47,
+        0.55,
+        0.52
+      ]
+    },
+    {
+      "field_name": "receiver_name",
+      "display_name": "ชื่อผู้รับ",
+      "field_type": "thai_name",
+      "required": true,
+      "crop_margin": 0.01,
+      "box": [
+        0.2,
+        0.59,
+        0.73,
+        0.65
+      ]
+    },
+    {
+      "field_name": "receiver_bank",
+      "display_name": "ธนาคารผู้รับ",
+      "field_type": "bank_name",
+      "required": false,
+      "crop_margin": 0.01,
+      "box": [
+        0.2,
+        0.66,
+        0.44,
+        0.7
+      ]
+    },
+    {
+      "field_name": "receiver_account",
+      "display_name": "บัญชีผู้รับ",
+      "field_type": "account_mask",
+      "required": true,
+      "crop_margin": 0.01,
+      "box": [
+        0.2,
+        0.71,
+        0.58,
+        0.75
+      ]
+    },
+    {
+      "field_name": "amount",
+      "display_name": "จำนวนเงิน",
+      "field_type": "money",
+      "required": true,
+      "crop_margin": 0.01,
+      "box": [
+        0.7,
+        0.77,
+        0.95,
+        0.82
+      ]
+    },
+    {
+      "field_name": "fee",
+      "display_name": "ค่าธรรมเนียม",
+      "field_type": "money",
+      "required": false,
+      "crop_margin": 0.01,
+      "box": [
+        0.77,
+        0.84,
+        0.95,
+        0.88
+      ]
+    },
+    {
+      "field_name": "transaction_datetime",
+      "display_name": "วันที่ทำรายการ",
+      "field_type": "datetime",
+      "required": true,
+      "crop_margin": 0.01,
+      "box": [
+        0.56,
+        0.89,
+        0.95,
+        0.94
+      ]
+    }
+  ]
+}

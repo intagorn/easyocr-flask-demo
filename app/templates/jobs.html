@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Jobs</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<main class="container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.batch_generic_rules_ocr_page') }}">Batch Upload</a>
+        <a href="{{ url_for('web.jobs_page') }}">Jobs</a>
+    </div>
+
+    <h1>Batch Jobs</h1>
+    <p class="subtitle">Recent file-based jobs. No database is used.</p>
+
+    <section class="card">
+        <div class="section-header-row">
+            <h2>Recent Jobs</h2>
+            <span class="badge">Max active jobs: {{ max_active_jobs }}</span>
+        </div>
+
+        <form method="post" action="{{ url_for('web.jobs_reset_active_page') }}" onsubmit="return confirm('Cancel all queued/processing jobs? This will not delete finished result files.');" class="inline-form">
+            <button type="submit" class="danger-button">Reset queued/processing jobs</button>
+        </form>
+        <p class="note">
+            Reset marks queued/processing jobs as cancelled. If OCR is truly stuck, stop/restart the service first, then press reset.
+        </p>
+
+
+        {% if jobs %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Job ID</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th>Failed</th>
+                    <th>Message</th>
+                    <th>Created</th>
+                    <th>Finished</th>
+                    <th>Links</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in jobs %}
+                <tr>
+                    <td><code>{{ job.job_id }}</code></td>
+                    <td><span class="badge status-{{ job.status }}">{{ job.status }}</span></td>
+                    <td>{{ job.processed_images or 0 }} / {{ job.total_images or 0 }}</td>
+                    <td>{{ job.failed_images or 0 }}</td>
+                    <td>{{ job.message or '' }}</td>
+                    <td>{{ job.created_at or '' }}</td>
+                    <td>{{ job.finished_at or '' }}</td>
+                    <td>
+                        <a href="{{ url_for('web.job_detail_page', job_id=job.job_id) }}">View</a>
+                        {% if job.status == 'finished' %}
+                        |
+                        <a href="{{ url_for('web.job_results_page', job_id=job.job_id) }}">Results</a>
+                        |
+                        <a href="{{ url_for('web.job_download', job_id=job.job_id) }}">Download</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="note">No jobs yet.</p>
+        {% endif %}
+    </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Hybrid OCR Demo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<main class="container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.ocr_page') }}">OCR Demo</a>
+        <a href="{{ url_for('web.generic_rules_ocr_page') }}">Generic Rules OCR</a>
+        <a href="{{ url_for('web.template_ocr_page') }}">Template OCR</a>
+        <a href="{{ url_for('web.templates_page') }}">Template Manager</a>
+    </div>
+
+    <h1>Hybrid OCR Demo</h1>
+    <p class="subtitle">
+        Experimental pipeline: run full-image OCR once, decode QR code, apply generic bank-transfer rules, and show evidence boxes.
+    </p>
+
+    <section class="card">
+        <form id="hybridOcrForm">
+            <label for="hybridImageInput">Select slip image</label>
+            <input
+                type="file"
+                id="hybridImageInput"
+                name="image"
+                accept="image/*"
+                required
+            >
+
+            <button type="submit" id="hybridSubmitBtn">Run Hybrid OCR</button>
+        </form>
+
+        <p id="hybridStatusText" class="status"></p>
+    </section>
+
+    <section class="card">
+        <h2>Image + Evidence Boxes</h2>
+        <p class="note">
+            Boxes show OCR text regions used as extraction evidence and detected QR code area. Labels are hidden to keep the view clean.
+        </p>
+
+        <div class="hybrid-image-stage" id="hybridImageStage">
+            <img id="hybridPreviewImage" class="hybrid-preview-image" alt="Uploaded image preview">
+            <div id="hybridBoxLayer" class="hybrid-box-layer"></div>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Extracted Fields</h2>
+        <div id="hybridExtractedFields">
+            <p class="note">No result yet.</p>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>QR Code Result</h2>
+        <textarea id="hybridQrOutput" readonly placeholder="QR result will appear here..."></textarea>
+    </section>
+
+    <section class="card">
+        <h2>Full Hybrid JSON</h2>
+        <textarea id="hybridJsonOutput" readonly placeholder="Full hybrid OCR result will appear here..."></textarea>
+    </section>
+</main>
+
+<script src="{{ url_for('static', filename='js/hybrid_ocr.js') }}"></script>
+</body>
+</html>

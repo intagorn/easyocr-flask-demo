@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Zone OCR Demo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<main class="container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.ocr_page') }}">OCR Demo</a>
+        <a href="{{ url_for('web.generic_rules_ocr_page') }}">Generic Rules OCR</a>
+        <a href="{{ url_for('web.hybrid_ocr_page') }}">Hybrid OCR</a>
+        <a href="{{ url_for('web.template_ocr_page') }}">Template OCR</a>
+        <a href="{{ url_for('web.templates_page') }}">Template Manager</a>
+    </div>
+
+    <h1>Zone OCR Demo</h1>
+    <p class="subtitle">
+        Experimental page: full OCR once + generic rules + template-zone OCR-box matching. Crop OCR fallback is not included yet.
+    </p>
+
+    {% if db_error %}
+    <section class="card error-card">
+        <h2>Database connection problem</h2>
+        <p>{{ db_error }}</p>
+    </section>
+    {% endif %}
+
+    <section class="card">
+        <form id="zoneOcrForm">
+            <div class="field-grid two-col">
+                <div>
+                    <label for="zoneDetectionMode">Detection Mode</label>
+                    <select id="zoneDetectionMode" name="detection_mode">
+                        <option value="auto">Auto detect template</option>
+                        <option value="manual">Manual template selection</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="zoneTemplateSelect">Template</label>
+                    <select id="zoneTemplateSelect" name="template_id">
+                        <option value="">-- Select Template for manual mode --</option>
+                        {% for tpl in templates %}
+                        <option value="{{ tpl.id }}">
+                            {{ tpl.template_code }} | {{ tpl.bank_name_th }} | {{ tpl.template_name }} | fields: {{ tpl.field_count }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="zoneImageInput">Slip image</label>
+                    <input
+                        type="file"
+                        id="zoneImageInput"
+                        name="image"
+                        accept="image/*"
+                        required
+                    >
+                </div>
+            </div>
+
+            <button type="submit" id="zoneSubmitBtn">Run Zone OCR</button>
+        </form>
+
+        <p id="zoneStatusText" class="status"></p>
+    </section>
+
+    <section class="card">
+        <h2>Image + Boxes</h2>
+        <p class="note">
+            Blue boxes: OCR evidence from generic extraction. Green dashed box: QR. Orange boxes: template zones. Purple boxes: OCR boxes inside template zones.
+        </p>
+
+        <div class="hybrid-image-stage" id="zoneImageStage">
+            <img id="zonePreviewImage" class="hybrid-preview-image" alt="Uploaded image preview">
+            <div id="zoneBoxLayer" class="hybrid-box-layer"></div>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Final Extracted Fields</h2>
+        <div id="zoneExtractedFields">
+            <p class="note">No result yet.</p>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Template Detection / Zone Matching</h2>
+        <textarea id="zoneDebugOutput" readonly placeholder="Detection and zone result will appear here..."></textarea>
+    </section>
+
+    <section class="card">
+        <h2>Full Zone OCR JSON</h2>
+        <textarea id="zoneJsonOutput" readonly placeholder="Full zone OCR result will appear here..."></textarea>
+    </section>
+</main>
+
+<script src="{{ url_for('static', filename='js/zone_ocr.js') }}"></script>
+</body>
+</html>

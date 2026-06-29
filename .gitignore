@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Local config/secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+storage/
+uploads/
+results/
+jobs/
+*.sqlite
+*.db
+
+# Generated artifacts and archives
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+
+# Logs
+*.log
+logs/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# OCR/customer data - do not commit private slip images
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.tif
+*.tiff
+!app/static/**
+!examples/**

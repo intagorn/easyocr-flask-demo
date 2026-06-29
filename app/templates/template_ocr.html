@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Template OCR Extraction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<main class="container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.ocr_page') }}">OCR Demo</a>
+        <a href="{{ url_for('web.generic_rules_ocr_page') }}">Generic Rules OCR</a>
+        <a href="{{ url_for('web.hybrid_ocr_page') }}">Hybrid OCR</a>
+        <a href="{{ url_for('web.zone_ocr_page') }}">Zone OCR</a>
+        <a href="{{ url_for('web.templates_page') }}">Template Manager</a>
+        <a href="{{ url_for('web.template_create_page') }}">Create New Template</a>
+    </div>
+
+    <h1>Template OCR Extraction</h1>
+    <p class="subtitle">
+        Auto-detect the template from the uploaded slip, or manually select a template for testing.
+    </p>
+
+    {% if db_error %}
+    <section class="card error-card">
+        <h2>Database connection problem</h2>
+        <p>{{ db_error }}</p>
+    </section>
+    {% endif %}
+
+    <section class="card">
+        <form id="templateOcrForm">
+            <div class="field-grid two-col">
+                <div>
+                    <label>Detection Mode</label>
+                    <label class="inline-check">
+                        <input type="radio" name="detection_mode" value="auto" checked>
+                        Auto detect template
+                    </label>
+                    <label class="inline-check">
+                        <input type="radio" name="detection_mode" value="manual">
+                        Manual template selection
+                    </label>
+                </div>
+
+                <div>
+                    <label for="templateImageInput">Slip image</label>
+                    <input
+                        type="file"
+                        id="templateImageInput"
+                        name="image"
+                        accept="image/*"
+                        required
+                    >
+                </div>
+
+                <div id="manualTemplateBlock" style="display:none;">
+                    <label for="templateSelect">Template</label>
+                    <select id="templateSelect" name="template_id">
+                        <option value="">-- Select Template --</option>
+                        {% for tpl in templates %}
+                        <option value="{{ tpl.id }}">
+                            {{ tpl.template_code }} | {{ tpl.bank_name_th }} | {{ tpl.template_name }} | fields: {{ tpl.field_count }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <button type="submit" id="templateOcrSubmitBtn">Run Template OCR</button>
+        </form>
+
+        <p id="templateOcrStatusText" class="status"></p>
+    </section>
+
+    <section class="card">
+        <h2>Template Detection</h2>
+        <div id="templateDetectionView" class="extracted-fields-view">
+            <p class="note">No detection result yet.</p>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Extracted Fields</h2>
+        <p class="note">
+            These values are extracted by cropping each saved template field box and running OCR on each crop.
+        </p>
+        <div id="templateExtractedFields" class="extracted-fields-view">
+            <p class="note">No result yet.</p>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Full Template OCR JSON</h2>
+        <textarea id="templateOcrJsonOutput" readonly placeholder="Template OCR JSON result will appear here..."></textarea>
+    </section>
+</main>
+
+<script src="{{ url_for('static', filename='js/template_ocr.js') }}"></script>
+</body>
+</html>

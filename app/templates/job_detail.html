@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Job {{ job.job_id }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% if job.status in ['queued', 'processing'] %}
+    <meta http-equiv="refresh" content="5">
+    {% endif %}
+</head>
+<body>
+<main class="container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.batch_generic_rules_ocr_page') }}">Batch Upload</a>
+        <a href="{{ url_for('web.jobs_page') }}">Jobs</a>
+    </div>
+
+    <h1>Job Status</h1>
+    <p class="subtitle"><code>{{ job.job_id }}</code></p>
+
+    <section class="card">
+        <div class="section-header-row">
+            <h2>Status</h2>
+            <span class="badge status-{{ job.status }}">{{ job.status }}</span>
+        </div>
+
+        <div class="progress-wrap">
+            <div class="progress-bar" style="width: {{ progress_percent }}%;"></div>
+        </div>
+
+        <p><strong>Progress:</strong> {{ job.processed_images or 0 }} / {{ job.total_images or 0 }} ({{ progress_percent }}%)</p>
+        <p><strong>Failed:</strong> {{ job.failed_images or 0 }}</p>
+        <p><strong>Skipped:</strong> {{ job.skipped_files or 0 }}</p>
+        <p><strong>Queue position:</strong> {{ job.queue_position if job.queue_position is not none else '-' }}</p>
+        <p><strong>Message:</strong> {{ job.message or '' }}</p>
+        <p><strong>Created:</strong> {{ job.created_at or '' }}</p>
+        <p><strong>Started:</strong> {{ job.started_at or '' }}</p>
+        <p><strong>Finished:</strong> {{ job.finished_at or '' }}</p>
+
+        {% if job.error %}
+        <h3>Error</h3>
+        <pre><code>{{ job.error }}</code></pre>
+        {% endif %}
+
+        <div class="form-actions">
+            <a class="button-link" href="{{ url_for('web.jobs_page') }}">Back to Jobs</a>
+            {% if job.status == 'finished' %}
+            <a class="button-link" href="{{ url_for('web.job_results_page', job_id=job.job_id) }}">View Result Table</a>
+            <a class="button-link" href="{{ url_for('web.job_download', job_id=job.job_id) }}">Download result.zip</a>
+            <a class="button-link" href="{{ url_for('web.job_summary_json', job_id=job.job_id) }}">summary.json</a>
+            {% endif %}
+        </div>
+
+        {% if job.status in ['queued', 'processing'] %}
+        <p class="note">This page auto-refreshes every 5 seconds while the job is not finished.</p>
+        {% endif %}
+    </section>
+</main>
+</body>
+</html>

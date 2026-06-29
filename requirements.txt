@@ -1,0 +1,7 @@
+flask
+easyocr
+pillow
+opencv-python
+pymysql
+python-dotenv
+gunicorn

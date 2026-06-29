@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>EasyOCR Thai Bank Slip Demo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<main class="container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.templates_page') }}">Template Manager</a>
+        <a href="{{ url_for('web.template_ocr_page') }}">Template OCR</a>
+    </div>
+    <h1>EasyOCR Thai Bank Slip Demo</h1>
+    <p class="subtitle">
+        Upload one image. The system returns raw OCR JSON and demo rule-based extracted fields.
+    </p>
+
+    <section class="card">
+        <form id="ocrForm">
+            <label for="imageInput">Select image</label>
+            <input
+                type="file"
+                id="imageInput"
+                name="image"
+                accept="image/*"
+                required
+            >
+
+            <button type="submit" id="submitBtn">Run OCR + Extract</button>
+        </form>
+
+        <p id="statusText" class="status"></p>
+    </section>
+
+    <section class="card">
+        <h2>Extracted Fields Demo</h2>
+        <p class="note">
+            These fields are produced by simple rule-based extraction. Low-confidence or missing fields should be reviewed by a human.
+        </p>
+
+        <div class="summary-grid">
+            <div>
+                <label>Extraction Status</label>
+                <input id="field_extraction_status" readonly>
+            </div>
+            <div>
+                <label>Detected Bank/App</label>
+                <input id="field_source_app_or_bank" readonly>
+            </div>
+            <div>
+                <label>Slip Format Guess</label>
+                <input id="field_slip_format_guess" readonly>
+            </div>
+            <div>
+                <label>Processing Time OCR (seconds)</label>
+                <input id="field_ocr_seconds" readonly>
+            </div>
+        </div>
+
+        <div class="field-grid">
+            <div>
+                <label>Transfer Status</label>
+                <input id="field_transfer_status" readonly>
+            </div>
+            <div>
+                <label>Reference / Transaction ID</label>
+                <input id="field_reference_id" readonly>
+            </div>
+            <div>
+                <label>Amount</label>
+                <input id="field_amount" readonly>
+            </div>
+            <div>
+                <label>Fee</label>
+                <input id="field_fee" readonly>
+            </div>
+            <div>
+                <label>Date Raw</label>
+                <input id="field_transaction_date_raw" readonly>
+            </div>
+            <div>
+                <label>Time Raw</label>
+                <input id="field_transaction_time_raw" readonly>
+            </div>
+            <div>
+                <label>Date/Time ISO Guess</label>
+                <input id="field_transaction_datetime_iso_guess" readonly>
+            </div>
+            <div>
+                <label>Sender Name</label>
+                <input id="field_sender_name" readonly>
+            </div>
+            <div>
+                <label>Sender Bank</label>
+                <input id="field_sender_bank" readonly>
+            </div>
+            <div>
+                <label>Sender Account</label>
+                <input id="field_sender_account" readonly>
+            </div>
+            <div>
+                <label>Receiver Name</label>
+                <input id="field_receiver_name" readonly>
+            </div>
+            <div>
+                <label>Receiver Bank</label>
+                <input id="field_receiver_bank" readonly>
+            </div>
+            <div>
+                <label>Receiver Account</label>
+                <input id="field_receiver_account" readonly>
+            </div>
+        </div>
+
+        <h3>Extraction Report</h3>
+        <textarea id="extractReport" readonly placeholder="Extraction report will appear here..."></textarea>
+    </section>
+
+    <section class="card">
+        <h2>Raw OCR / Full JSON Output</h2>
+        <textarea id="jsonOutput" readonly placeholder="Full OCR JSON result will appear here..."></textarea>
+    </section>
+</main>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

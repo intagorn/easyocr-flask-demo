@@ -1,0 +1,69 @@
+{
+  "banks": [
+    {
+      "bank_id": "kbank_kplus",
+      "display_name": "Kasikornbank / K+",
+      "keywords": ["k+", "กสิกร", "กสิกรไทย", "ธ.กสิกรไทย", "kasikorn", "kbank"]
+    },
+    {
+      "bank_id": "krungthai",
+      "display_name": "Krungthai Bank",
+      "keywords": ["krungthai", "กรุงไทย", "กรงไทย", "ธ.กรุงไทย"]
+    },
+    {
+      "bank_id": "scb",
+      "display_name": "Siam Commercial Bank / SCB",
+      "keywords": ["ไทยพาณิชย์", "scb", "ธ.ไทยพาณิชย์"]
+    },
+    {
+      "bank_id": "bangkok_bank",
+      "display_name": "Bangkok Bank",
+      "keywords": ["กรุงเทพ", "bangkok bank", "bbl", "ธ.กรุงเทพ"]
+    },
+    {
+      "bank_id": "krungsri",
+      "display_name": "Krungsri / Bank of Ayudhya",
+      "keywords": ["กรุงศรี", "อยุธยา", "krungsri", "bay", "ธ.กรุงศรี"]
+    },
+    {
+      "bank_id": "ttb",
+      "display_name": "ttb / TMBThanachart",
+      "keywords": ["ttb", "ทีทีบี", "ทหารไทยธนชาต", "tmb", "thanachart", "ธนชาต"]
+    },
+    {
+      "bank_id": "gsb",
+      "display_name": "Government Savings Bank",
+      "keywords": ["ออมสิน", "gsb", "government savings"]
+    },
+    {
+      "bank_id": "baac",
+      "display_name": "BAAC",
+      "keywords": ["ธ.ก.ส", "ธกส", "baac", "เพื่อการเกษตร"]
+    },
+    {
+      "bank_id": "uob",
+      "display_name": "UOB Thailand",
+      "keywords": ["uob", "ยูโอบี"]
+    },
+    {
+      "bank_id": "cimb",
+      "display_name": "CIMB Thai",
+      "keywords": ["cimb", "ซีไอเอ็มบี"]
+    },
+    {
+      "bank_id": "kkp",
+      "display_name": "Kiatnakin Phatra / KKP",
+      "keywords": ["เกียรตินาคิน", "ภัทร", "kkp"]
+    },
+    {
+      "bank_id": "lhbank",
+      "display_name": "LH Bank",
+      "keywords": ["แลนด์ แอนด์ เฮ้าส์", "lh bank", "lhbank"]
+    },
+    {
+      "bank_id": "tisco",
+      "display_name": "TISCO Bank",
+      "keywords": ["ทิสโก้", "tisco"]
+    }
+  ]
+}

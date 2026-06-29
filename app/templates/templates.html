@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Template Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<main class="container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.ocr_page') }}">OCR Demo</a>
+        <a href="{{ url_for('web.generic_rules_ocr_page') }}">Generic Rules OCR</a>
+        <a href="{{ url_for('web.hybrid_ocr_page') }}">Hybrid OCR</a>
+        <a href="{{ url_for('web.zone_ocr_page') }}">Zone OCR</a>
+    </div>
+
+    <h1>Template Manager</h1>
+    <p class="subtitle">
+        Banks and existing templates from MySQL. This version adds a Create New Template page with sample image upload.
+    </p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+        <section class="card success-card">
+            <p>{{ message }}</p>
+        </section>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% if db_error %}
+    <section class="card error-card">
+        <h2>Database connection problem</h2>
+        <p>{{ db_error }}</p>
+        <p class="note">
+            Check your MySQL settings in environment variables or <code>.env</code>. The OCR demo can still work without MySQL.
+        </p>
+    </section>
+    {% endif %}
+
+    <section class="card">
+        <div class="section-header-row">
+            <h2>Banks</h2>
+            <a class="button-link" href="{{ url_for('web.template_create_page') }}">Create New Template</a>
+        </div>
+        {% if banks %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Bank Code</th>
+                    <th>Thai Name</th>
+                    <th>English Name</th>
+                    <th>Active</th>
+                    <th>Templates</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for bank in banks %}
+                <tr>
+                    <td>{{ bank.id }}</td>
+                    <td>{{ bank.bank_code }}</td>
+                    <td>{{ bank.bank_name_th }}</td>
+                    <td>{{ bank.bank_name_en or '' }}</td>
+                    <td>{{ 'Yes' if bank.is_active else 'No' }}</td>
+                    <td>{{ bank.template_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="note">No banks found. Import the SQL schema/seed file first.</p>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <div class="section-header-row">
+            <h2>Templates</h2>
+            <a class="button-link" href="{{ url_for('web.template_create_page') }}">Create New Template</a>
+        </div>
+        {% if templates %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Template Code</th>
+                    <th>Template Name</th>
+                    <th>Bank</th>
+                    <th>Version</th>
+                    <th>Status</th>
+                    <th>Fields</th>
+                    <th>Samples</th>
+                    <th>Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tpl in templates %}
+                <tr>
+                    <td>{{ tpl.id }}</td>
+                    <td><a href="{{ url_for('web.template_detail_page', template_id=tpl.id) }}">{{ tpl.template_code }}</a></td>
+                    <td><a href="{{ url_for('web.template_detail_page', template_id=tpl.id) }}">{{ tpl.template_name }}</a></td>
+                    <td>{{ tpl.bank_name_th }}</td>
+                    <td>{{ tpl.version_label or '' }}</td>
+                    <td><span class="badge">{{ tpl.status }}</span></td>
+                    <td>{{ tpl.field_count }}</td>
+                    <td>{{ tpl.sample_count }}</td>
+                    <td>{{ tpl.updated_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="note">No templates found yet. Use Create New Template to add the first draft template.</p>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <h2>API checks</h2>
+        <p class="note">You can also check the database-backed API endpoints:</p>
+        <ul>
+            <li><code>/api/banks</code></li>
+            <li><code>/api/templates</code></li>
+            <li><code>POST /api/templates</code></li>
+        </ul>
+    </section>
+</main>
+
+</body>
+</html>

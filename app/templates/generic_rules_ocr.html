@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Generic Rules OCR</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<main class="container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.ocr_page') }}">OCR Demo</a>
+        <a href="{{ url_for('web.generic_rules_ocr_page') }}">Generic Rules OCR</a>
+        <a href="{{ url_for('web.batch_generic_rules_ocr_page') }}">Batch Upload</a>
+        <a href="{{ url_for('web.jobs_page') }}">Jobs</a>
+        <a href="{{ url_for('web.hybrid_ocr_page') }}">Hybrid OCR</a>
+        <a href="{{ url_for('web.zone_ocr_page') }}">Zone OCR</a>
+        <a href="{{ url_for('web.templates_page') }}">Template Manager</a>
+    </div>
+
+    <h1>Generic Rules OCR</h1>
+    <p class="subtitle">
+        No database and no template boxes. This page runs EasyOCR once, parses raw OCR text using generic bank-transfer rules, decodes QR, and shows evidence boxes.
+    </p>
+
+    <section class="card">
+        <form id="genericRulesForm">
+            <label for="genericRulesImageInput">Select slip image</label>
+            <input
+                type="file"
+                id="genericRulesImageInput"
+                name="image"
+                accept="image/*"
+                required
+            >
+
+            <button type="submit" id="genericRulesSubmitBtn">Run Generic Rules OCR</button>
+        </form>
+
+        <p id="genericRulesStatusText" class="status"></p>
+    </section>
+
+    <section class="card">
+        <h2>Image + Evidence Boxes</h2>
+        <p class="note">
+            Boxes show OCR text regions that matched extracted fields. QR code boxes are dashed green. Hover on a box to see debug text.
+        </p>
+
+        <div class="hybrid-image-stage" id="genericRulesImageStage">
+            <img id="genericRulesPreviewImage" class="hybrid-preview-image" alt="Uploaded image preview">
+            <div id="genericRulesBoxLayer" class="hybrid-box-layer"></div>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Extracted Fields</h2>
+        <div id="genericRulesExtractedFields">
+            <p class="note">No result yet.</p>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Raw OCR Full Text</h2>
+        <textarea id="genericRulesRawText" readonly placeholder="Raw OCR text will appear here..."></textarea>
+    </section>
+
+    <section class="card">
+        <h2>QR Code Result</h2>
+        <textarea id="genericRulesQrOutput" readonly placeholder="QR result will appear here..."></textarea>
+    </section>
+
+    <section class="card">
+        <h2>Full JSON</h2>
+        <textarea id="genericRulesJsonOutput" readonly placeholder="Full result will appear here..."></textarea>
+    </section>
+</main>
+
+<script src="{{ url_for('static', filename='js/generic_rules_ocr.js') }}"></script>
+</body>
+</html>

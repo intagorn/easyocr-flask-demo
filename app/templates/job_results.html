@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Job Results {{ job.job_id }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<main class="container wide-container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.jobs_page') }}">Jobs</a>
+        <a href="{{ url_for('web.job_detail_page', job_id=job.job_id) }}">Job Status</a>
+        <a href="{{ url_for('web.job_download', job_id=job.job_id) }}">Download result.zip</a>
+    </div>
+
+    <h1>Result Table</h1>
+    <p class="subtitle"><code>{{ job.job_id }}</code></p>
+
+    <section class="card">
+        {% if rows %}
+        <div class="table-scroll">
+            <table class="batch-result-table">
+                <thead>
+                    <tr>
+                        <th>Image</th>
+                        <th>Filename</th>
+                        <th>Status</th>
+                        <th>Amount</th>
+                        <th>Date/Time</th>
+                        <th>Reference ID</th>
+                        <th>Sender Name</th>
+                        <th>Receiver Name</th>
+                        <th>Receiver Account</th>
+                        <th>Warnings</th>
+                        <th>JSON</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td>
+                            {% if row.output_stem %}
+                            <a href="{{ url_for('web.job_image_preview', job_id=job.job_id, output_stem=row.output_stem, filename=row.filename) }}" target="_blank">
+                                <img class="job-thumb" src="{{ url_for('web.job_image_preview', job_id=job.job_id, output_stem=row.output_stem, filename=row.filename) }}" alt="{{ row.filename }}">
+                            </a>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.filename or row.original_zip_path }}</td>
+                        <td><span class="badge status-{{ row.status }}">{{ row.status }}</span></td>
+                        <td><strong>{{ row.amount or '' }}</strong></td>
+                        <td>{{ row.transaction_datetime_iso_guess or '' }}</td>
+                        <td>{{ row.reference_id or '' }}</td>
+                        <td>{{ row.sender_name or '' }}</td>
+                        <td>{{ row.receiver_name or '' }}</td>
+                        <td>{{ row.receiver_account or '' }}</td>
+                        <td class="warnings-cell">{{ row.warnings or '' }}</td>
+                        <td>
+                            {% if row.output_stem %}
+                            <a href="{{ url_for('web.job_image_json', job_id=job.job_id, output_stem=row.output_stem) }}" target="_blank">JSON</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="note">No result rows found yet. The job may still be processing or summary.json is missing.</p>
+        {% endif %}
+    </section>
+</main>
+</body>
+</html>

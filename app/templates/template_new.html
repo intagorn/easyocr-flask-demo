@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Create New Template</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<main class="container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.ocr_page') }}">OCR Demo</a>
+        <a href="{{ url_for('web.generic_rules_ocr_page') }}">Generic Rules OCR</a>
+        <a href="{{ url_for('web.hybrid_ocr_page') }}">Hybrid OCR</a>
+        <a href="{{ url_for('web.zone_ocr_page') }}">Zone OCR</a>
+        <a href="{{ url_for('web.templates_page') }}">Template Manager</a>
+        <a href="{{ url_for('web.template_ocr_page') }}">Template OCR</a>
+    </div>
+
+    <h1>Create New Template</h1>
+    <p class="subtitle">
+        Create a draft template by selecting a bank and uploading one sample slip image. Bounding box drawing will be added in the next step.
+    </p>
+
+    {% if db_error %}
+    <section class="card error-card">
+        <h2>Database connection problem</h2>
+        <p>{{ db_error }}</p>
+    </section>
+    {% endif %}
+
+    {% if form_error %}
+    <section class="card error-card">
+        <h2>Could not save template</h2>
+        <p>{{ form_error }}</p>
+    </section>
+    {% endif %}
+
+    <section class="card">
+        <form method="post" enctype="multipart/form-data" class="template-form">
+            <div class="field-grid two-col">
+                <div>
+                    <label for="bank_id">Bank *</label>
+                    <select id="bank_id" name="bank_id" required>
+                        <option value="">-- Select Bank --</option>
+                        {% for bank in banks %}
+                        <option value="{{ bank.id }}" {% if request.form.get('bank_id') == (bank.id|string) %}selected{% endif %}>
+                            {{ bank.bank_name_th }}{% if bank.bank_name_en %} ({{ bank.bank_name_en }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="version_label">Version Label</label>
+                    <input type="text" id="version_label" name="version_label" value="{{ request.form.get('version_label', '') }}" placeholder="e.g. 2026-A">
+                </div>
+                <div>
+                    <label for="template_code">Template Code *</label>
+                    <input type="text" id="template_code" name="template_code" value="{{ request.form.get('template_code', '') }}" required placeholder="e.g. krungthai_next_2026_a">
+                </div>
+                <div>
+                    <label for="template_name">Template Name *</label>
+                    <input type="text" id="template_name" name="template_name" value="{{ request.form.get('template_name', '') }}" required placeholder="e.g. Krungthai NEXT 2026 Format A">
+                </div>
+                <div>
+                    <label for="created_by">Created By</label>
+                    <input type="text" id="created_by" name="created_by" value="{{ request.form.get('created_by', '') }}" placeholder="optional">
+                </div>
+                <div>
+                    <label for="sample_image">Sample Slip Image *</label>
+                    <input type="file" id="sample_image" name="sample_image" accept="image/*" required>
+                </div>
+            </div>
+
+            <div>
+                <label for="notes">Notes</label>
+                <textarea id="notes" name="notes" placeholder="optional note about this template or sample image">{{ request.form.get('notes', '') }}</textarea>
+            </div>
+
+            <div class="form-actions">
+                <a class="button-link secondary" href="{{ url_for('web.templates_page') }}">Back to Template Manager</a>
+                <button type="submit" {% if db_error %}disabled{% endif %}>Save Draft Template</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="card">
+        <h2>What this version does</h2>
+        <ul>
+            <li>Create one draft template in the <code>templates</code> table.</li>
+            <li>Upload one sample image and save it on disk.</li>
+            <li>Save the sample image relative path into <code>template_samples</code>.</li>
+            <li>Bounding box drawing and template editing will be added in the next version.</li>
+        </ul>
+    </section>
+</main>
+
+</body>
+</html>

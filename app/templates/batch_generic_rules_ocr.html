@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Batch Generic Rules OCR</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<main class="container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.generic_rules_ocr_page') }}">Generic Rules OCR</a>
+        <a href="{{ url_for('web.batch_generic_rules_ocr_page') }}">Batch Upload</a>
+        <a href="{{ url_for('web.jobs_page') }}">Jobs</a>
+    </div>
+
+    <h1>Batch Generic Rules OCR</h1>
+    <p class="subtitle">
+        Upload a ZIP of slip images. The server queues the job, processes one job at a time, and creates result.zip with JSON, raw OCR text, summary.csv, and summary.json.
+    </p>
+
+    <section class="card">
+        <h2>Upload ZIP</h2>
+
+        {% if form_error %}
+        <p class="error-text">{{ form_error }}</p>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data">
+            <label for="zip_file">ZIP file</label>
+            <input id="zip_file" name="zip_file" type="file" accept=".zip" required>
+
+            <label for="submitted_by">Submitted by</label>
+            <input id="submitted_by" name="submitted_by" type="text" placeholder="optional">
+
+            <button type="submit">Create Job</button>
+        </form>
+
+        <p class="note">
+            Queue limit: queued + processing jobs must be less than {{ max_active_jobs }}. Only one job processes at a time.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>API Example</h2>
+        <pre><code>curl.exe -X POST http://127.0.0.1:5000/api/batch-jobs -F "zip_file=@input_slips.zip"</code></pre>
+    </section>
+</main>
+</body>
+</html>

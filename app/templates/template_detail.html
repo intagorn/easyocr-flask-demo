@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Template Detail</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<main class="container">
+    <div class="top-nav">
+        <a href="{{ url_for('web.index') }}">Home</a>
+        <a href="{{ url_for('web.ocr_page') }}">OCR Demo</a>
+        <a href="{{ url_for('web.generic_rules_ocr_page') }}">Generic Rules OCR</a>
+        <a href="{{ url_for('web.hybrid_ocr_page') }}">Hybrid OCR</a>
+        <a href="{{ url_for('web.zone_ocr_page') }}">Zone OCR</a>
+        <a href="{{ url_for('web.templates_page') }}">Template Manager</a>
+        <a href="{{ url_for('web.template_ocr_page') }}">Template OCR</a>
+        <a href="{{ url_for('web.template_create_page') }}">Create New Template</a>
+    </div>
+
+    {% if db_error %}
+    <section class="card error-card">
+        <h2>Database problem</h2>
+        <p>{{ db_error }}</p>
+    </section>
+    {% endif %}
+
+    {% if template %}
+    <h1>{{ template.template_name }}</h1>
+    <p class="subtitle">
+        Draw boxes on the sample image and save them as anchors/key areas or template fields.
+    </p>
+
+    <section class="card">
+        <div class="section-header-row">
+            <h2>Template Metadata</h2>
+            <span class="badge">{{ template.status }}</span>
+        </div>
+
+        <div class="detail-grid">
+            <div>
+                <label>Template ID</label>
+                <input readonly value="{{ template.id }}">
+            </div>
+            <div>
+                <label>Template Code</label>
+                <input readonly value="{{ template.template_code }}">
+            </div>
+            <div>
+                <label>Bank</label>
+                <input readonly value="{{ template.bank_name_th }}{% if template.bank_name_en %} / {{ template.bank_name_en }}{% endif %}">
+            </div>
+            <div>
+                <label>Version</label>
+                <input readonly value="{{ template.version_label or '' }}">
+            </div>
+            <div>
+                <label>Expected Size</label>
+                <input readonly value="{% if template.expected_width and template.expected_height %}{{ template.expected_width }} x {{ template.expected_height }}{% else %}-{% endif %}">
+            </div>
+            <div>
+                <label>Aspect Ratio</label>
+                <input readonly value="{{ template.expected_aspect_ratio or '' }}">
+            </div>
+            <div>
+                <label>Created By</label>
+                <input readonly value="{{ template.created_by or '' }}">
+            </div>
+            <div>
+                <label>Updated At</label>
+                <input readonly value="{{ template.updated_at or '' }}">
+            </div>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Draw Box on Sample Image</h2>
+
+        {% if samples %}
+            {% set first_sample = samples[0] %}
+
+            <div class="draw-layout">
+                <div class="draw-panel">
+                    <div class="image-stage" id="imageStage">
+                        <img
+                            id="sampleImage"
+                            class="sample-image drawable-image"
+                            src="{{ url_for('web.template_sample_image', sample_id=first_sample.id) }}"
+                            alt="Template sample image"
+                        >
+
+                        {% for anchor in anchors %}
+                        <div
+                            class="saved-box anchor-box editable-saved-box"
+                            data-box-kind="anchor"
+                            data-box-id="{{ anchor.id }}"
+                            data-name="{{ anchor.anchor_name }}"
+                            data-x1="{{ anchor.x1 }}"
+                            data-y1="{{ anchor.y1 }}"
+                            data-x2="{{ anchor.x2 }}"
+                            data-y2="{{ anchor.y2 }}"
+                            style="left: {{ anchor.x1 * 100 }}%; top: {{ anchor.y1 * 100 }}%; width: {{ (anchor.x2 - anchor.x1) * 100 }}%; height: {{ (anchor.y2 - anchor.y1) * 100 }}%;"
+                            title="Anchor: {{ anchor.anchor_name }}"
+                        >
+                            <span>A: {{ anchor.anchor_name }}</span>
+                        </div>
+                        {% endfor %}
+
+                        {% for field in fields %}
+                        <div
+                            class="saved-box field-box editable-saved-box"
+                            data-box-kind="field"
+                            data-box-id="{{ field.id }}"
+                            data-name="{{ field.field_name }}"
+                            data-x1="{{ field.x1 }}"
+                            data-y1="{{ field.y1 }}"
+                            data-x2="{{ field.x2 }}"
+                            data-y2="{{ field.y2 }}"
+                            style="left: {{ field.x1 * 100 }}%; top: {{ field.y1 * 100 }}%; width: {{ (field.x2 - field.x1) * 100 }}%; height: {{ (field.y2 - field.y1) * 100 }}%;"
+                            title="Field: {{ field.field_name }}"
+                        >
+                            <span>F: {{ field.field_name }}</span>
+                        </div>
+                        {% endfor %}
+
+                        <div id="drawBox" class="draw-box"></div>
+                    </div>
+
+                    <p class="note">
+                        Drag on empty image area to create a new rectangle. Turn on edit mode to move or resize existing saved boxes.
+                    </p>
+
+                    <div class="box-edit-toolbar">
+                        <label class="inline-check">
+                            <input id="editSavedBoxesToggle" type="checkbox">
+                            Edit saved boxes
+                        </label>
+                        <button type="button" id="saveEditedBoxBtn" disabled>Save Edited Box</button>
+                        <button type="button" id="cancelEditBoxBtn" disabled>Cancel Edit</button>
+                        <span id="editBoxStatus" class="status"></span>
+                    </div>
+
+                    <p class="note">
+                        Edit mode: click a saved box, drag inside the box to move it, or drag the small square handles to resize it. No coordinate typing is needed.
+                    </p>
+                </div>
+
+                <div class="draw-controls">
+                    <h3>Box Mode</h3>
+                    <label for="boxMode">Choose what this box is</label>
+                    <select id="boxMode">
+                        <option value="field">Field</option>
+                        <option value="anchor">Anchor / Key Area</option>
+                    </select>
+
+                    <div class="coords-preview">
+                        <label>Current Normalized Box</label>
+                        <input id="coordPreview" readonly placeholder="Draw a box on the image">
+                    </div>
+
+                    <div id="fieldControls">
+                        <h3>Field Settings</h3>
+                        <label for="fieldName">Field Name</label>
+                        <select id="fieldName">
+                            <option value="reference_id" data-type="long_number">reference_id</option>
+                            <option value="amount" data-type="money">amount</option>
+                            <option value="fee" data-type="money">fee</option>
+                            <option value="transaction_datetime" data-type="datetime">transaction_datetime</option>
+                            <option value="transaction_date" data-type="date">transaction_date</option>
+                            <option value="transaction_time" data-type="time">transaction_time</option>
+                            <option value="sender_name" data-type="thai_name">sender_name</option>
+                            <option value="sender_bank" data-type="bank_name">sender_bank</option>
+                            <option value="sender_account" data-type="account_mask">sender_account</option>
+                            <option value="receiver_name" data-type="thai_name">receiver_name</option>
+                            <option value="receiver_bank" data-type="bank_name">receiver_bank</option>
+                            <option value="receiver_account" data-type="account_mask">receiver_account</option>
+                            <option value="transfer_status" data-type="status">transfer_status</option>
+                            <option value="text" data-type="text">custom text</option>
+                        </select>
+
+                        <label for="displayName">Display Name</label>
+                        <input id="displayName" type="text" placeholder="e.g. จำนวนเงิน">
+
+                        <label for="fieldType">Field Type</label>
+                        <select id="fieldType">
+                            <option value="text">text</option>
+                            <option value="money">money</option>
+                            <option value="long_number">long_number</option>
+                            <option value="date">date</option>
+                            <option value="time">time</option>
+                            <option value="datetime">datetime</option>
+                            <option value="account_mask">account_mask</option>
+                            <option value="bank_name">bank_name</option>
+                            <option value="thai_name">thai_name</option>
+                            <option value="status">status</option>
+                        </select>
+
+                        <label class="inline-check">
+                            <input id="fieldRequired" type="checkbox">
+                            Required field
+                        </label>
+
+                        <label for="cropMargin">Crop Margin</label>
+                        <input id="cropMargin" type="text" value="0.01">
+                    </div>
+
+                    <div id="anchorControls" style="display:none;">
+                        <h3>Anchor Settings</h3>
+
+                        <label for="anchorName">Anchor Name</label>
+                        <input id="anchorName" type="text" value="main_key">
+
+                        <label for="anchorType">Anchor Type</label>
+                        <select id="anchorType">
+                            <option value="key_area">key_area</option>
+                            <option value="logo_area">logo_area</option>
+                            <option value="text_label">text_label</option>
+                            <option value="success_text">success_text</option>
+                            <option value="other">other</option>
+                        </select>
+
+                        <label for="expectedKeywords">Expected Keywords</label>
+                        <input id="expectedKeywords" type="text" placeholder="comma separated, e.g. กรุงไทย, krungthai">
+
+                        <label class="inline-check">
+                            <input id="anchorRequired" type="checkbox">
+                            Required anchor
+                        </label>
+
+                        <label for="anchorWeight">Weight</label>
+                        <input id="anchorWeight" type="text" value="1.0">
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" id="saveBoxBtn">Save Box</button>
+                    </div>
+
+                    <p id="boxStatus" class="status"></p>
+                </div>
+            </div>
+        {% else %}
+            <p class="note">No sample image found for this template.</p>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <div class="section-header-row">
+            <h2>Anchors / Key Areas</h2>
+            <span class="badge">{{ anchors|length }} anchors</span>
+        </div>
+
+        {% if anchors %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Anchor Name</th>
+                    <th>Type</th>
+                    <th>Box</th>
+                    <th>Required</th>
+                    <th>Weight</th>
+                    <th>Expected Keywords</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for anchor in anchors %}
+                <tr>
+                    <td>{{ anchor.id }}</td>
+                    <td>{{ anchor.anchor_name }}</td>
+                    <td>{{ anchor.anchor_type }}</td>
+                    <td>[{{ "%.4f"|format(anchor.x1) }}, {{ "%.4f"|format(anchor.y1) }}, {{ "%.4f"|format(anchor.x2) }}, {{ "%.4f"|format(anchor.y2) }}]</td>
+                    <td>{{ 'Yes' if anchor.required else 'No' }}</td>
+                    <td>{{ anchor.weight }}</td>
+                    <td><code>{{ anchor.expected_keywords_json or '' }}</code></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="note">
+            No anchors/key areas yet.
+        </p>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <div class="section-header-row">
+            <h2>Template Fields</h2>
+            <span class="badge">{{ fields|length }} fields</span>
+        </div>
+
+        {% if fields %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Field Name</th>
+                    <th>Display Name</th>
+                    <th>Type</th>
+                    <th>Box</th>
+                    <th>Required</th>
+                    <th>Margin</th>
+                    <th>Active</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for field in fields %}
+                <tr>
+                    <td>{{ field.id }}</td>
+                    <td>{{ field.field_name }}</td>
+                    <td>{{ field.display_name }}</td>
+                    <td>{{ field.field_type }}</td>
+                    <td>[{{ "%.4f"|format(field.x1) }}, {{ "%.4f"|format(field.y1) }}, {{ "%.4f"|format(field.x2) }}, {{ "%.4f"|format(field.y2) }}]</td>
+                    <td>{{ 'Yes' if field.required else 'No' }}</td>
+                    <td>{{ field.crop_margin }}</td>
+                    <td>{{ 'Yes' if field.is_active else 'No' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="note">
+            No fields yet.
+        </p>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <h2>All Samples</h2>
+        {% if samples %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Sample Name</th>
+                    <th>Type</th>
+                    <th>Image Path</th>
+                    <th>Size</th>
+                    <th>Aspect Ratio</th>
+                    <th>Created At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sample in samples %}
+                <tr>
+                    <td>{{ sample.id }}</td>
+                    <td>{{ sample.sample_name or '' }}</td>
+                    <td>{{ sample.sample_type }}</td>
+                    <td><code>{{ sample.image_path }}</code></td>
+                    <td>{{ sample.image_width or '-' }} x {{ sample.image_height or '-' }}</td>
+                    <td>{{ sample.aspect_ratio or '' }}</td>
+                    <td>{{ sample.created_at or '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="note">No samples found.</p>
+        {% endif %}
+    </section>
+    {% endif %}
+</main>
+
+<script>
+window.TEMPLATE_ID = {{ template.id if template else 'null' }};
+</script>
+<script src="{{ url_for('static', filename='js/template_editor.js') }}"></script>
+</body>
+</html>

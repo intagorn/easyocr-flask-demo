@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>EasyOCR Template MVP</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<main class="container">
+    <h1>EasyOCR Template MVP</h1>
+    <p class="subtitle">
+        Prototype for OCR, bank-slip extraction, and future template management.
+    </p>
+
+    <section class="card home-card">
+        <h2>Choose a page</h2>
+        <div class="home-links">
+            <a class="big-link" href="{{ url_for('web.ocr_page') }}">
+                <strong>OCR Demo</strong>
+                <span>Upload one image and return OCR JSON + demo extracted fields.</span>
+            </a>
+            <a class="big-link" href="{{ url_for('web.generic_rules_ocr_page') }}">
+                <strong>Generic Rules OCR</strong>
+                <span>No database. Full OCR once + raw text rules + QR + evidence boxes.</span>
+            </a>
+            <a class="big-link" href="{{ url_for('web.batch_generic_rules_ocr_page') }}">
+                <strong>Batch Generic OCR Jobs</strong>
+                <span>Upload a ZIP of slip images, view job status, and download result.zip.</span>
+            </a>
+            <a class="big-link" href="{{ url_for('web.hybrid_ocr_page') }}">
+                <strong>Hybrid OCR</strong>
+                <span>Full OCR once + QR decoding + generic bank-transfer extraction + evidence boxes.</span>
+            </a>
+            <a class="big-link" href="{{ url_for('web.zone_ocr_page') }}">
+                <strong>Zone OCR</strong>
+                <span>Generic rules plus template-zone OCR-box matching.</span>
+            </a>
+            <a class="big-link" href="{{ url_for('web.templates_page') }}">
+                <strong>Template Manager</strong>
+                <span>View banks, create templates, and draw template boxes.</span>
+            </a>
+            <a class="big-link" href="{{ url_for('web.template_ocr_page') }}">
+                <strong>Template OCR</strong>
+                <span>Select a template and extract fields from one slip image.</span>
+            </a>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Current version</h2>
+        <p class="note">
+            This version adds MySQL read access, a template list page, and a Create New Template page with sample image upload. It does not yet implement drawing boxes or template-based OCR extraction.
+        </p>
+    </section>
+</main>
+
+</body>
+</html>
