@@ -49,5 +49,11 @@ Thumbs.db
 *.webp
 *.tif
 *.tiff
+*.JPG
+*.JPEG
+*.PNG
+*.WEBP
+*.bmp
+*.BMP
 !app/static/**
 !examples/**

@@ -24,6 +24,10 @@ BANK_KEYWORDS = {
         "display_name": "Bangkok Bank / ธนาคารกรุงเทพ",
         "keywords": ["bangkok bank", "ธนาคารกรุงเทพ", "กรุงเทพ"]
     },
+    "krungsri": {
+        "display_name": "Krungsri / ธนาคารกรุงศรีอยุธยา",
+        "keywords": ["krungsri", "กรุงศรี"]
+    },
     "ttb": {
         "display_name": "TTB / ทหารไทยธนชาต",
         "keywords": ["ttb", "ทหารไทย", "ธนชาต"]
@@ -166,7 +170,7 @@ def is_bank_line(line: str) -> Optional[str]:
             kw_low = kw.lower()
             if kw_low in line_low:
                 # allow bank lines such as "กรุงไทย" or explicit marker "ธ."
-                if line_low == kw_low or "ธ." in line_low or "ธนาคาร" in line_low or bank_id in ["krungthai", "scb"]:
+                if line_low == kw_low or "ธ." in line_low or "ธนาคาร" in line_low or bank_id in ["krungthai", "krungsri", "scb"]:
                     return cfg["display_name"]
     return None
 
@@ -186,7 +190,7 @@ def clean_reference_value(text: str) -> Optional[str]:
         return None
     s = text
     # Handle Thai and English reference labels, including OCR variant "n0" for "no".
-    s = re.sub(r"^(รหัสอ้างอิง|เลขที่อ้างอิง|เลขที่รายการ|reference\s*(?:no|n0|number)?|ref\s*(?:no|n0)?)\s*[:：.]?\s*", "", s, flags=re.I)
+    s = re.sub(r"^(รหัสอ้างอิง|เลขอ้างอิง|เลขที่อ้างอิง|เลขที่รายการ|reference\s*(?:no|n0|number)?|ref\s*(?:no|n0)?)\s*[:：.]?\s*", "", s, flags=re.I)
     s = re.sub(r"^(no|n0)\s*[:：.]?\s*", "", s, flags=re.I)
     s = re.sub(r"[^0-9A-Za-zก-๙\-_/]", "", s)
     # If OCR kept English label residue, remove it one more time.
@@ -196,24 +200,55 @@ def clean_reference_value(text: str) -> Optional[str]:
     return None
 
 
+def is_bad_global_reference_candidate(candidate: str, line: str) -> bool:
+    c = compact(candidate)
+    line_c = compact(line)
+
+    # Bank logos and watermarks are often OCR'd as long Latin text. Do not let
+    # those become reference IDs when there is no explicit reference label.
+    watermark_tokens = [
+        "krungthai",
+        "rrungthai",
+        "rungthai",
+        "angthai",
+        "kasikorn",
+        "bangkokbank",
+        "promptpay",
+        "scb",
+    ]
+    if any(token in c or token in line_c for token in watermark_tokens):
+        return True
+
+    # Keep the unlabeled fallback conservative: it is meant for mixed
+    # alphanumeric references, not pure logo/name OCR.
+    if not re.search(r"[A-Za-z]", candidate) or not re.search(r"\d", candidate):
+        return True
+
+    return False
+
+
 def reference_id(lines: List[str]) -> Dict[str, Any]:
-    labels = ["รหัสอ้างอิง", "เลขที่อ้างอิง", "เลขที่รายการ", "reference", "ref"]
+    labels = ["รหัสอ้างอิง", "เลขอ้างอิง", "เลขที่อ้างอิง", "เลขที่รายการ", "reference", "ref"]
     for i, line in enumerate(lines):
         if contains_any(line, labels):
-            after = re.sub(r".*?(รหัสอ้างอิง|เลขที่อ้างอิง|เลขที่รายการ|reference\s*(?:no|n0|number)?|ref\s*(?:no|n0)?)\s*[:：.]?\s*", "", line, flags=re.I)
+            after = re.sub(r".*?(รหัสอ้างอิง|เลขอ้างอิง|เลขที่อ้างอิง|เลขที่รายการ|reference\s*(?:no|n0|number)?|ref\s*(?:no|n0)?)\s*[:：.]?\s*", "", line, flags=re.I)
             val = clean_reference_value(after)
             if val:
-                return make_field(val, line, 0.90, "reference_label_same_line_preserve_alphanumeric")
+                method = "reference_label_same_line_digits" if re.fullmatch(r"\d{10,25}", val) else "reference_label_same_line_preserve_alphanumeric"
+                return make_field(val, line, 0.90, method)
             for j in range(i + 1, min(i + 4, len(lines))):
                 val = clean_reference_value(lines[j])
                 if val:
-                    return make_field(val, lines[j], 0.82, "reference_label_next_line_preserve_alphanumeric")
+                    method = "reference_label_next_line_digits" if re.fullmatch(r"\d{10,25}", val) else "reference_label_next_line_preserve_alphanumeric"
+                    return make_field(val, lines[j], 0.82, method)
 
     # fallback: long alphanumeric with both digits and letters, but avoid accounts.
     for line in lines:
         if is_account_line(line) or is_money_line(line):
             continue
         for m in re.findall(r"[A-Za-z0-9]{12,}", line):
+            if is_bad_global_reference_candidate(m, line):
+                continue
             return make_field(m, line, 0.45, "reference_global_alphanumeric_fallback", ["Reference ID found without label; check manually."])
     return make_field(None, None, 0.0, "not_found", ["Reference ID not found."])
 
@@ -521,11 +556,25 @@ def clean_account_candidate(line: str) -> str:
     # OCR may read dash as equals.
     s = re.sub(r"(?<=\d)\s*=\s*(?=\d)", "-", s)
     s = re.sub(r"\s*[-–]\s*", "-", s)
+    # Krungsri-style masked accounts can OCR the final dash as a space:
+    # xxx-9-12345 x -> xxx-9-12345-x.
+    s = re.sub(r"(?<=[0-9xX])\s+(?=[xX]$)", "-", s)
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
 
 def is_account_line(line: str) -> bool:
+    # Transaction date/time can collapse to 10-13 digits after account cleanup
+    # and should never be treated as an unmasked account.
+    explicit_month_tokens = [
+        "ม.ค", "ก.พ", "มี.ค", "เม.ย", "พ.ค", "มิ.ย",
+        "ก.ค", "ส.ค", "ก.ย", "ต.ค", "พ.ย", "ธ.ค",
+        "มค", "กพ", "มีค", "เมย", "พค", "มิย",
+        "กค", "สค", "กย", "ตค", "พย", "ธค",
+    ]
+    if has_time_pattern(line) or contains_any(line, explicit_month_tokens):
+        return False
+
     cleaned = clean_account_candidate(line)
     c = re.sub(r"\s+", "", cleaned)
     has_x = "x" in c.lower()
@@ -701,20 +750,27 @@ def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Di
             continue
 
         bank_value = None
+        bank_line_text = None
         name_lines = []
 
         # Search for a nearby bank/channel line above or below the account.
         for j in range(account_idx - 1, max(-1, account_idx - 5), -1):
+            if is_account_line(lines[j]):
+                break
             bank_candidate = is_bank_line(lines[j])
             if bank_candidate:
                 bank_value = bank_candidate
+                bank_line_text = lines[j]
                 break
 
         if not bank_value:
             for j in range(account_idx + 1, min(len(lines), account_idx + 4)):
+                if is_account_line(lines[j]):
+                    break
                 bank_candidate = is_bank_line(lines[j])
                 if bank_candidate:
                     bank_value = bank_candidate
+                    bank_line_text = lines[j]
                     break
 
         # Collect 1-2 nearby name lines above the account. Skip bank lines but
@@ -740,8 +796,11 @@ def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Di
 
         # Require at least an account and either bank or name to avoid over-matching noise.
         if bank_value or name_lines:
+            name = " ".join(name_lines).strip() if name_lines else None
+            if not name and bank_line_text and "กรุงศรี" in bank_line_text and compact(bank_line_text) != compact("กรุงศรี"):
+                name = bank_line_text
             groups.append({
-                "name": " ".join(name_lines).strip() if name_lines else None,
+                "name": name,
                 "bank": bank_value,
                 "account": normalize_account(line),
                 "account_line_index": account_idx,
