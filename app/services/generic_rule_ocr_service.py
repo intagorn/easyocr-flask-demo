@@ -556,6 +556,12 @@ def clean_account_candidate(line: str) -> str:
     # OCR may read dash as equals.
     s = re.sub(r"(?<=\d)\s*=\s*(?=\d)", "-", s)
     s = re.sub(r"\s*[-–]\s*", "-", s)
+    # Some numeric account OCR drops a dash between digit groups:
+    # 777 9-12345-6 -> 777-9-12345-6.
+    s = re.sub(r"(?<=\d{3})\s+(?=\d-)", "-", s)
+    # Some numeric account OCR drops the final dash:
+    # 777-7-12345 6 -> 777-7-12345-6.
+    s = re.sub(r"(?<=[0-9xX])\s+(?=\d$)", "-", s)
     # Krungsri-style masked accounts can OCR the final dash as a space:
     # xxx-9-12345 x -> xxx-9-12345-x.
     s = re.sub(r"(?<=[0-9xX])\s+(?=[xX]$)", "-", s)
@@ -566,6 +572,9 @@ def clean_account_candidate(line: str) -> str:
 def is_account_line(line: str) -> bool:
     # Transaction date/time can collapse to 10-13 digits after account cleanup
     # and should never be treated as an unmasked account.
+    if ":" in (line or "") or "：" in (line or ""):
+        return False
+
     explicit_month_tokens = [
         "ม.ค", "ก.พ", "มี.ค", "เม.ย", "พ.ค", "มิ.ย",
         "ก.ค", "ส.ค", "ก.ย", "ต.ค", "พ.ย", "ธ.ค",
@@ -644,6 +653,18 @@ def is_definitely_not_name_line(line: str) -> bool:
     raw = line or ""
     stripped = raw.strip()
     if not stripped:
+        return True
+
+    ui_keywords = [
+        "บันทึกใบเสร็จ",
+        "บันทึกแล้ว",
+        "เพิ่มในรายการ",
+        "เพิมในรายการ",
+        "เพิมไในรายการ",
+        "แชร์",
+        "เสร็จสิ้น",
+    ]
+    if contains_any(stripped, ui_keywords):
         return True
 
     # Pure date/time lines should never be used as person names.
@@ -744,6 +765,18 @@ def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Di
     """
     groups = []
     warnings = []
+    group_stop_keywords = [
+        "โอนเงินสำเร็จ",
+        "รายการสำเร็จ",
+        "ทำรายการสำเร็จ",
+        "บันทึกใบเสร็จ",
+        "บันทึกแล้ว",
+        "เพิ่มในรายการ",
+        "เพิมในรายการ",
+        "เพิมไในรายการ",
+        "แชร์",
+        "เสร็จสิ้น",
+    ]
 
     for account_idx, line in enumerate(lines):
         if not is_account_line(line):
@@ -778,11 +811,19 @@ def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Di
         for j in range(account_idx - 1, max(-1, account_idx - 5), -1):
             if is_account_line(lines[j]):
                 break
-            if is_bank_line(lines[j]):
+            bank_candidate = is_bank_line(lines[j])
+            if bank_candidate:
+                # A Krungsri app/account display line can be both bank and the
+                # sender display name. Keep it local to this account group.
+                if "กรุงศรี" in lines[j] and compact(lines[j]) != compact("กรุงศรี"):
+                    name_lines.insert(0, lines[j].strip(" |｜"))
+                    break
                 continue
             if is_money_line(lines[j]):
                 break
             if contains_any(lines[j], ["reference", "รหัส", "อ้างอิง", "เลขที่", "จำนวน", "ค่าธรรมเนียม"]):
+                break
+            if contains_any(lines[j], group_stop_keywords):
                 break
 
             if is_name_like(lines[j]):
@@ -798,7 +839,7 @@ def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Di
         if bank_value or name_lines:
             name = " ".join(name_lines).strip() if name_lines else None
             if not name and bank_line_text and "กรุงศรี" in bank_line_text and compact(bank_line_text) != compact("กรุงศรี"):
-                name = bank_line_text
+                name = bank_line_text.strip(" |｜")
             groups.append({
                 "name": name,
                 "bank": bank_value,
