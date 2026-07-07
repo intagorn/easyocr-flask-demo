@@ -206,7 +206,7 @@ def clean_reference_value(text: str) -> Optional[str]:
 def clean_reference_edge_artifacts(value: str) -> str:
     """Strip likely vertical-border OCR only at the edges of a reference ID."""
     s = (value or "").strip()
-    s = s.strip("|｜")
+    s = s.strip("|｜/\\")
 
     # Sometimes a nearby vertical line is read as a leading lowercase l or I.
     # Only remove one edge character when the remaining text is still a strong
