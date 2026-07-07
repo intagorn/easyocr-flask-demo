@@ -4,20 +4,21 @@ from datetime import datetime
 import easyocr
 from config import OCR_LANGUAGES, USE_GPU
 
-_reader = None
+_readers = {}
 
 
-def get_reader():
+def get_reader(languages=None):
     """
     Load EasyOCR reader once and reuse it.
     Loading the model every request would be very slow.
     """
-    global _reader
+    language_list = list(languages or OCR_LANGUAGES)
+    reader_key = tuple(language_list)
 
-    if _reader is None:
-        _reader = easyocr.Reader(OCR_LANGUAGES, gpu=USE_GPU)
+    if reader_key not in _readers:
+        _readers[reader_key] = easyocr.Reader(language_list, gpu=USE_GPU)
 
-    return _reader
+    return _readers[reader_key]
 
 
 def convert_bbox(bbox):

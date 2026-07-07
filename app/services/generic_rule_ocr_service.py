@@ -1,9 +1,10 @@
 import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
+import numpy as np
 from PIL import Image
 
-from app.services.ocr_service import run_ocr
+from app.services.ocr_service import get_reader, run_ocr
 from app.services.hybrid_ocr_service import _detect_qr_codes, _normalize_rect
 
 
@@ -190,14 +191,46 @@ def clean_reference_value(text: str) -> Optional[str]:
         return None
     s = text
     # Handle Thai and English reference labels, including OCR variant "n0" for "no".
-    s = re.sub(r"^(รหัสอ้างอิง|เลขอ้างอิง|เลขที่อ้างอิง|เลขที่รายการ|reference\s*(?:no|n0|number)?|ref\s*(?:no|n0)?)\s*[:：.]?\s*", "", s, flags=re.I)
+    s = re.sub(r"^(รหัสอ้างอิง|เลขอ้างอิง|เลขที่อ้างอิง|เลขที่รายการ|หมายเลขอ้างอิง|หมายเลขอางอง|หมายเสขอางอง|reference\s*(?:no|n0|number)?|ref\s*(?:no|n0)?)\s*[:：.]?\s*", "", s, flags=re.I)
     s = re.sub(r"^(no|n0)\s*[:：.]?\s*", "", s, flags=re.I)
-    s = re.sub(r"[^0-9A-Za-zก-๙\-_/]", "", s)
+    s = re.sub(r"[^0-9A-Za-zก-๙\-_/|｜]", "", s)
+    s = clean_reference_edge_artifacts(s)
     # If OCR kept English label residue, remove it one more time.
     s = re.sub(r"^(reference|ref|no|n0)", "", s, flags=re.I)
+    s = clean_reference_edge_artifacts(s)
     if len(s) >= 8:
         return s
     return None
+
+
+def clean_reference_edge_artifacts(value: str) -> str:
+    """Strip likely vertical-border OCR only at the edges of a reference ID."""
+    s = (value or "").strip()
+    s = s.strip("|｜")
+
+    # Sometimes a nearby vertical line is read as a leading lowercase l or I.
+    # Only remove one edge character when the remaining text is still a strong
+    # mixed alphanumeric reference candidate.
+    for artifact in ["l", "I"]:
+        if len(s) > 8 and s.startswith(artifact):
+            rest = s[1:]
+            if re.fullmatch(r"[A-Za-z0-9/_-]{8,30}", rest) and re.search(r"[A-Za-z]", rest) and re.search(r"\d", rest):
+                s = rest
+                break
+
+    for artifact in ["l", "I"]:
+        if len(s) > 8 and s.endswith(artifact):
+            rest = s[:-1]
+            if re.fullmatch(r"[A-Za-z0-9/_-]{8,30}", rest) and re.search(r"[A-Za-z]", rest) and re.search(r"\d", rest):
+                s = rest
+                break
+
+    return s
+
+
+def normalize_reference_value(value: str) -> str:
+    """Normalize reference IDs without changing OCR letter case."""
+    return clean_reference_edge_artifacts(value or "")
 
 
 def is_bad_global_reference_candidate(candidate: str, line: str) -> bool:
@@ -228,19 +261,19 @@ def is_bad_global_reference_candidate(candidate: str, line: str) -> bool:
 
 
 def reference_id(lines: List[str]) -> Dict[str, Any]:
-    labels = ["รหัสอ้างอิง", "เลขอ้างอิง", "เลขที่อ้างอิง", "เลขที่รายการ", "reference", "ref"]
+    labels = ["รหัสอ้างอิง", "เลขอ้างอิง", "เลขที่อ้างอิง", "เลขที่รายการ", "หมายเลขอ้างอิง", "หมายเลขอางอง", "หมายเสขอางอง", "reference", "ref"]
     for i, line in enumerate(lines):
         if contains_any(line, labels):
-            after = re.sub(r".*?(รหัสอ้างอิง|เลขอ้างอิง|เลขที่อ้างอิง|เลขที่รายการ|reference\s*(?:no|n0|number)?|ref\s*(?:no|n0)?)\s*[:：.]?\s*", "", line, flags=re.I)
+            after = re.sub(r".*?(รหัสอ้างอิง|เลขอ้างอิง|เลขที่อ้างอิง|เลขที่รายการ|หมายเลขอ้างอิง|หมายเลขอางอง|หมายเสขอางอง|reference\s*(?:no|n0|number)?|ref\s*(?:no|n0)?)\s*[:：.]?\s*", "", line, flags=re.I)
             val = clean_reference_value(after)
             if val:
                 method = "reference_label_same_line_digits" if re.fullmatch(r"\d{10,25}", val) else "reference_label_same_line_preserve_alphanumeric"
-                return make_field(val, line, 0.90, method)
+                return make_field(normalize_reference_value(val), line, 0.90, method)
             for j in range(i + 1, min(i + 4, len(lines))):
                 val = clean_reference_value(lines[j])
                 if val:
                     method = "reference_label_next_line_digits" if re.fullmatch(r"\d{10,25}", val) else "reference_label_next_line_preserve_alphanumeric"
-                    return make_field(val, lines[j], 0.82, method)
+                    return make_field(normalize_reference_value(val), lines[j], 0.82, method)
 
     # fallback: long alphanumeric with both digits and letters, but avoid accounts.
     for line in lines:
@@ -249,7 +282,7 @@ def reference_id(lines: List[str]) -> Dict[str, Any]:
         for m in re.findall(r"[A-Za-z0-9]{12,}", line):
             if is_bad_global_reference_candidate(m, line):
                 continue
-            return make_field(m, line, 0.45, "reference_global_alphanumeric_fallback", ["Reference ID found without label; check manually."])
+            return make_field(normalize_reference_value(m), line, 0.45, "reference_global_alphanumeric_fallback", ["Reference ID found without label; check manually."])
     return make_field(None, None, 0.0, "not_found", ["Reference ID not found."])
 
 
@@ -966,6 +999,188 @@ def qr_boxes(qr_codes: List[Dict[str, Any]]):
     } for qr in qr_codes]
 
 
+REFERENCE_LABEL_KEYWORDS = [
+    "รหัสอ้างอิง",
+    "เลขอ้างอิง",
+    "เลขที่อ้างอิง",
+    "เลขที่รายการ",
+    "หมายเลขอ้างอิง",
+    "หมายเลขอางอง",
+    "หมายเสขอางอง",
+    "reference",
+    "ref",
+]
+
+
+def is_reference_like_value(value: str) -> bool:
+    if not value:
+        return False
+    value = normalize_reference_value(value)
+    if not (8 <= len(value) <= 30):
+        return False
+    if not re.fullmatch(r"[A-Za-z0-9/_-]+", value):
+        return False
+    if not re.search(r"\d", value):
+        return False
+    if is_money_line(value) or is_account_line(value) or has_time_pattern(value):
+        return False
+    if re.search(r"[ก-๙]", value) and has_thai_date_pattern(value):
+        return False
+    return True
+
+
+def reference_candidate_from_english_text(text: str) -> Optional[str]:
+    val = clean_reference_value(text)
+    if val and is_reference_like_value(val):
+        return normalize_reference_value(val)
+    return None
+
+
+def reference_crop_rects(ocr_items: List[Dict[str, Any]], reference_field: Dict[str, Any], image_width: int, image_height: int) -> List[List[int]]:
+    rects = []
+
+    for item in ocr_items:
+        text = item.get("text", "")
+        if not contains_any(text, REFERENCE_LABEL_KEYWORDS):
+            continue
+        rect = rect_from_bbox_points(item.get("bbox", []))
+        label_height = max(16.0, rect[3] - rect[1])
+        rects.append([
+            max(0, int(rect[0] - 30)),
+            max(0, int(rect[1] - 20)),
+            min(image_width, int(image_width - 5)),
+            min(image_height, int(rect[3] + max(90.0, label_height * 5))),
+        ])
+
+    for evidence in reference_field.get("evidence_texts", []):
+        evidence_clean = compact(str(evidence))
+        if not evidence_clean:
+            continue
+        for item in ocr_items:
+            text_clean = compact(item.get("text", ""))
+            if not text_clean or (evidence_clean not in text_clean and text_clean not in evidence_clean):
+                continue
+            rect = rect_from_bbox_points(item.get("bbox", []))
+            rects.append([
+                max(0, int(rect[0] - 50)),
+                max(0, int(rect[1] - 30)),
+                min(image_width, int(rect[2] + 50)),
+                min(image_height, int(rect[3] + 30)),
+            ])
+
+    deduped = []
+    seen = set()
+    for rect in rects:
+        if rect[2] - rect[0] < 20 or rect[3] - rect[1] < 12:
+            continue
+        key = tuple(rect)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(rect)
+    return deduped[:3]
+
+
+def best_reference_candidate_from_english_ocr(raw_results) -> Optional[Dict[str, Any]]:
+    candidates = []
+    texts = []
+
+    for _bbox, text, confidence in raw_results:
+        text = str(text)
+        texts.append(text)
+        candidate = reference_candidate_from_english_text(text)
+        if not candidate:
+            continue
+        has_letters = bool(re.search(r"[A-Za-z]", candidate))
+        score = float(confidence) + (0.20 if has_letters else 0.0) + min(len(candidate), 20) / 100.0
+        candidates.append({
+            "value": candidate,
+            "raw_text": text,
+            "confidence": float(confidence),
+            "score": score,
+        })
+
+    joined_text = " ".join(texts)
+    joined_candidate = reference_candidate_from_english_text(joined_text)
+    if joined_candidate:
+        has_letters = bool(re.search(r"[A-Za-z]", joined_candidate))
+        candidates.append({
+            "value": joined_candidate,
+            "raw_text": joined_text,
+            "confidence": 0.65,
+            "score": 0.65 + (0.20 if has_letters else 0.0) + min(len(joined_candidate), 20) / 100.0,
+        })
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item["score"], reverse=True)
+    return candidates[0]
+
+
+def should_replace_reference_with_rescue(current_value: Optional[str], rescued_value: str) -> bool:
+    if not rescued_value:
+        return False
+    if not current_value:
+        return True
+
+    current = str(current_value or "")
+    rescued = normalize_reference_value(rescued_value)
+    if current == rescued:
+        return False
+    return True
+
+
+def rescue_reference_id_with_english_crop(extraction: Dict[str, Any], image_path: str, ocr_items: List[Dict[str, Any]], image_width: int, image_height: int) -> Optional[Dict[str, Any]]:
+    fields = extraction.get("fields", {})
+    reference_field = fields.get("reference_id", {})
+    crop_rects = reference_crop_rects(ocr_items, reference_field, image_width, image_height)
+    if not crop_rects:
+        return None
+
+    reader = get_reader(["en"])
+    best = None
+
+    with Image.open(image_path) as img:
+        for rect in crop_rects:
+            crop = img.crop(tuple(rect)).convert("RGB")
+            raw_results = reader.readtext(np.array(crop))
+            candidate = best_reference_candidate_from_english_ocr(raw_results)
+            if not candidate:
+                continue
+            candidate["crop_rect"] = rect
+            if best is None or candidate["score"] > best["score"]:
+                best = candidate
+
+    if not best:
+        return None
+
+    current_value = reference_field.get("value")
+    rescued_value = best["value"]
+    if not should_replace_reference_with_rescue(current_value, rescued_value):
+        return None
+
+    fields["reference_id"] = make_field(
+        rescued_value,
+        best["raw_text"],
+        max(0.78, min(0.93, best["confidence"])),
+        "reference_english_crop_rescue",
+        ["Reference ID was rescued using English-only OCR on a cropped reference area."],
+        evidence_texts=[best["raw_text"]],
+    )
+
+    extraction["missing_fields"] = [k for k in extraction.get("missing_fields", []) if k != "reference_id"]
+    extraction["low_confidence_fields"] = [
+        k for k, f in fields.items()
+        if f.get("value") not in [None, ""] and f.get("confidence", 0) < 0.60
+    ]
+    extraction["warnings"] = [
+        w for w in extraction.get("warnings", [])
+        if not str(w).startswith("reference_id:")
+    ]
+    extraction["warnings"].append("reference_id: Reference ID was rescued using English-only OCR on a cropped reference area.")
+    return best
+
+
 def is_note_stop_line(line: str) -> bool:
     """Stop note capture at QR/instruction text or next major slip section."""
     stop_keywords = [
@@ -1130,6 +1345,7 @@ def run_generic_rule_ocr(image_path: str) -> Dict[str, Any]:
     ocr_items = ocr_result.get("result", {}).get("items", [])
 
     extraction = extract_generic_rules_from_full_text(full_text, ocr_items)
+    reference_rescue = rescue_reference_id_with_english_crop(extraction, image_path, ocr_items, image_width, image_height)
     qr_codes = _detect_qr_codes(image_path, image_width, image_height)
 
     evidence_boxes = find_field_evidence_boxes(extraction.get("fields", {}), ocr_items, image_width, image_height)
@@ -1145,6 +1361,7 @@ def run_generic_rule_ocr(image_path: str) -> Dict[str, Any]:
         "pipeline": [
             "full_image_easyocr_once",
             "raw_full_text_rule_extraction",
+            "reference_id_english_crop_rescue",
             "promptpay_as_bank_or_channel_keyword",
             "qr_extraction",
             "evidence_boxes",
@@ -1156,6 +1373,7 @@ def run_generic_rule_ocr(image_path: str) -> Dict[str, Any]:
             "height": image_height,
         },
         "extraction": extraction,
+        "reference_id_english_crop_rescue": reference_rescue,
         "qr_codes": qr_codes,
         "evidence_boxes": evidence_boxes,
         "ocr_result": ocr_result,
