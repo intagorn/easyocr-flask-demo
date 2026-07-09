@@ -1022,7 +1022,10 @@ def is_reference_like_value(value: str) -> bool:
         return False
     if not re.search(r"\d", value):
         return False
-    if is_money_line(value) or is_account_line(value) or has_time_pattern(value):
+    if is_money_line(value) or has_time_pattern(value):
+        return False
+    has_non_mask_letter = bool(re.search(r"[A-WYZa-wyz]", value))
+    if not has_non_mask_letter and is_account_line(value):
         return False
     if re.search(r"[ก-๙]", value) and has_thai_date_pattern(value):
         return False
@@ -1030,10 +1033,32 @@ def is_reference_like_value(value: str) -> bool:
 
 
 def reference_candidate_from_english_text(text: str) -> Optional[str]:
+    candidates = []
+
     val = clean_reference_value(text)
     if val and is_reference_like_value(val):
-        return normalize_reference_value(val)
-    return None
+        candidates.append(normalize_reference_value(val))
+
+    # English-only OCR can read the Thai label as random Latin text, e.g.
+    # "Shaanuju A78619cb934034cbb". Keep the best reference-like token.
+    for token in re.findall(r"[A-Za-z0-9/_|｜\\-]{8,30}", text or ""):
+        token = normalize_reference_value(token)
+        if token and is_reference_like_value(token):
+            candidates.append(token)
+
+    if not candidates:
+        return None
+
+    candidates.sort(
+        key=lambda item: (
+            len(re.findall(r"\d", item)) / max(1, len(item)),
+            len(re.findall(r"\d", item)),
+            bool(re.search(r"[A-Za-z]", item)),
+            len(item),
+        ),
+        reverse=True,
+    )
+    return candidates[0]
 
 
 def reference_crop_rects(ocr_items: List[Dict[str, Any]], reference_field: Dict[str, Any], image_width: int, image_height: int) -> List[List[int]]:
@@ -1127,7 +1152,9 @@ def should_replace_reference_with_rescue(current_value: Optional[str], rescued_v
     rescued = normalize_reference_value(rescued_value)
     if current == rescued:
         return False
-    return True
+    # English crop OCR may improve case, but it should not change the actual
+    # reference characters. Reject b/6, A/4, O/0 style changes here.
+    return current.lower() == rescued.lower()
 
 
 def rescue_reference_id_with_english_crop(extraction: Dict[str, Any], image_path: str, ocr_items: List[Dict[str, Any]], image_width: int, image_height: int) -> Optional[Dict[str, Any]]:
@@ -1179,6 +1206,60 @@ def rescue_reference_id_with_english_crop(extraction: Dict[str, Any], image_path
     ]
     extraction["warnings"].append("reference_id: Reference ID was rescued using English-only OCR on a cropped reference area.")
     return best
+
+
+def find_case_insensitive_substring(haystack: str, needle: str) -> Optional[str]:
+    if not haystack or not needle:
+        return None
+    start = haystack.lower().find(needle.lower())
+    if start < 0:
+        return None
+    return haystack[start:start + len(needle)]
+
+
+def apply_qr_reference_case_correction(extraction: Dict[str, Any], qr_codes: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    fields = extraction.get("fields", {})
+    reference_field = fields.get("reference_id", {})
+    current_value = reference_field.get("value")
+    if not current_value or not is_reference_like_value(str(current_value)):
+        return None
+
+    current_clean = normalize_reference_value(str(current_value))
+    for qr in qr_codes:
+        qr_data = str(qr.get("data") or "")
+        matched = find_case_insensitive_substring(qr_data, current_clean)
+        if not matched:
+            continue
+        matched = normalize_reference_value(matched)
+        if matched == current_clean:
+            return None
+
+        fields["reference_id"] = make_field(
+            matched,
+            qr_data,
+            max(0.88, float(reference_field.get("confidence", 0.0))),
+            "reference_qr_case_correction",
+            ["Reference ID casing was corrected from QR data that matched the OCR reference case-insensitively."],
+            evidence_texts=list(reference_field.get("evidence_texts", [])) + [qr_data],
+        )
+        extraction["missing_fields"] = [k for k in extraction.get("missing_fields", []) if k != "reference_id"]
+        extraction["low_confidence_fields"] = [
+            k for k, f in fields.items()
+            if f.get("value") not in [None, ""] and f.get("confidence", 0) < 0.60
+        ]
+        extraction["warnings"] = [
+            w for w in extraction.get("warnings", [])
+            if not str(w).startswith("reference_id:")
+        ]
+        extraction["warnings"].append("reference_id: Reference ID casing was corrected from QR data.")
+        return {
+            "value": matched,
+            "previous_value": current_clean,
+            "qr_data": qr_data,
+            "method": qr.get("method"),
+        }
+
+    return None
 
 
 def is_note_stop_line(line: str) -> bool:
@@ -1347,6 +1428,7 @@ def run_generic_rule_ocr(image_path: str) -> Dict[str, Any]:
     extraction = extract_generic_rules_from_full_text(full_text, ocr_items)
     reference_rescue = rescue_reference_id_with_english_crop(extraction, image_path, ocr_items, image_width, image_height)
     qr_codes = _detect_qr_codes(image_path, image_width, image_height)
+    reference_qr_correction = apply_qr_reference_case_correction(extraction, qr_codes)
 
     evidence_boxes = find_field_evidence_boxes(extraction.get("fields", {}), ocr_items, image_width, image_height)
     evidence_boxes.extend(qr_boxes(qr_codes))
@@ -1362,6 +1444,7 @@ def run_generic_rule_ocr(image_path: str) -> Dict[str, Any]:
             "full_image_easyocr_once",
             "raw_full_text_rule_extraction",
             "reference_id_english_crop_rescue",
+            "reference_id_qr_case_correction",
             "promptpay_as_bank_or_channel_keyword",
             "qr_extraction",
             "evidence_boxes",
@@ -1374,6 +1457,7 @@ def run_generic_rule_ocr(image_path: str) -> Dict[str, Any]:
         },
         "extraction": extraction,
         "reference_id_english_crop_rescue": reference_rescue,
+        "reference_id_qr_case_correction": reference_qr_correction,
         "qr_codes": qr_codes,
         "evidence_boxes": evidence_boxes,
         "ocr_result": ocr_result,
