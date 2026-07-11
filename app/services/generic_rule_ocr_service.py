@@ -33,6 +33,10 @@ BANK_KEYWORDS = {
         "display_name": "TTB / ทหารไทยธนชาต",
         "keywords": ["ttb", "ทหารไทย", "ธนชาต"]
     },
+    "gsb": {
+        "display_name": "GSB / MyMo / ธนาคารออมสิน",
+        "keywords": ["gsb", "mymo", "ธนาคารออมสิน", "ออมสิน"]
+    },
     "promptpay": {
         "display_name": "PromptPay / พร้อมเพย์",
         "keywords": ["พร้อมเพย์", "promptpay", "prompt pay"]
@@ -705,6 +709,8 @@ def is_definitely_not_name_line(line: str) -> bool:
         return True
     if has_time_pattern(stripped) and not re.search(r"(นาย|นางสาว|นาง|น\.ส\.)", stripped):
         return True
+    if len(re.sub(r"[^ก-๙]", "", stripped)) == 1 and not re.search(r"[A-Za-z0-9]", stripped):
+        return True
     if stripped in ["+", "i+", "k+", "K+"]:
         return True
     return False
@@ -724,7 +730,7 @@ def is_name_like(line: str) -> bool:
         return False
     if is_money_line(cleaned):
         return False
-    if contains_any(cleaned, ["โอนเงิน", "รหัส", "อ้างอิง", "เลขที่", "จำนวน", "ค่าธรรมเนียม", "วันที่", "บาท", "จาก", "ไปยัง", "ไปที่", "สแกนตรวจสอบ", "สแกน", "ตรวจสอบ", "โอนเพิ่ม", "แชร์", "ยอดคงเหลือ", "กลับหน้าหลัก", "category"]):
+    if contains_any(cleaned, ["โอนเงิน", "รหัส", "อ้างอิง", "เลขที่", "จำนวน", "ค่าธรรมเนียม", "วันที่", "บาท", "จาก", "ถึง", "ไปยัง", "ไปที่", "สแกนตรวจสอบ", "สแกน", "ตรวจสอบ", "โอนเพิ่ม", "แชร์", "ยอดคงเหลือ", "กลับหน้าหลัก", "category"]):
         return False
     # Date/time mixed with no Thai title should not become a name.
     if (has_thai_date_pattern(cleaned) or has_time_pattern(cleaned)) and not re.search(r"(นาย|นางสาว|นาง|น\.ส\.)", cleaned):
@@ -902,8 +908,8 @@ def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Di
 
 def extract_parties(lines: List[str]) -> Tuple[Dict[str, Any], Dict[str, Any], List[str]]:
     warnings = []
-    sender_bounds = find_section_bounds(lines, ["จาก"], ["ไปยัง", "ไปที่", "จำนวนเงิน", "จำนวน"])
-    receiver_bounds = find_section_bounds(lines, ["ไปยัง", "ไปที่"], ["จำนวนเงิน", "จำนวน", "ค่าธรรมเนียม", "วันที่ทำรายการ", "บันทึกช่วยจำ", "หมายเลขอ้างอิง", "เลขที่อ้างอิง"])
+    sender_bounds = find_section_bounds(lines, ["จาก"], ["ถึง", "ไปยัง", "ไปที่", "จำนวนเงิน", "จำนวน"])
+    receiver_bounds = find_section_bounds(lines, ["ถึง", "ไปยัง", "ไปที่"], ["qr code", "or code", "สแกน", "จำนวนเงิน", "จำนวน", "ค่าธรรมเนียม", "วันที่ทำรายการ", "บันทึกช่วยจำ", "หมายเลขอ้างอิง", "เลขที่อ้างอิง"])
 
     if sender_bounds:
         s_start, s_end = sender_bounds
@@ -949,7 +955,7 @@ def extract_parties(lines: List[str]) -> Tuple[Dict[str, Any], Dict[str, Any], L
     if not sender_block:
         warnings.append("Sender section label 'จาก' not found; account-group fallback may be used.")
     if not receiver_block:
-        warnings.append("Receiver section label 'ไปยัง' not found; account-group fallback may be used.")
+        warnings.append("Receiver section label 'ถึง/ไปยัง' not found; account-group fallback may be used.")
 
     return sender, receiver, warnings
 
@@ -1018,7 +1024,7 @@ def is_reference_like_value(value: str) -> bool:
     value = normalize_reference_value(value)
     if not (8 <= len(value) <= 30):
         return False
-    if not re.fullmatch(r"[A-Za-z0-9/_-]+", value):
+    if not re.fullmatch(r"[A-Za-z0-9/_|｜-]+", value):
         return False
     if not re.search(r"\d", value):
         return False
@@ -1217,6 +1223,42 @@ def find_case_insensitive_substring(haystack: str, needle: str) -> Optional[str]
     return haystack[start:start + len(needle)]
 
 
+def reference_qr_compare_key(value: str) -> str:
+    """Normalize only high-confidence OCR confusions for QR reference matching."""
+    s = normalize_reference_value(value or "").lower()
+    return s.translate(str.maketrans({
+        "|": "i",
+        "｜": "i",
+        "l": "i",
+        "1": "i",
+        "8": "b",
+    }))
+
+
+def find_qr_reference_confusion_substring(qr_data: str, ocr_reference: str) -> Optional[str]:
+    if not qr_data or not ocr_reference:
+        return None
+
+    current_len = len(ocr_reference)
+    if current_len < 8:
+        return None
+
+    current_key = reference_qr_compare_key(ocr_reference)
+    for m in re.finditer(r"[A-Za-z0-9|｜/_-]{8,}", qr_data):
+        token = normalize_reference_value(m.group(0))
+        if len(token) >= current_len:
+            for start in range(0, len(token) - current_len + 1):
+                window = token[start:start + current_len]
+                if reference_qr_compare_key(window) == current_key:
+                    return window
+            continue
+
+        if abs(len(token) - current_len) <= 1 and reference_qr_compare_key(token) in current_key:
+            return token
+
+    return None
+
+
 def apply_qr_reference_case_correction(extraction: Dict[str, Any], qr_codes: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     fields = extraction.get("fields", {})
     reference_field = fields.get("reference_id", {})
@@ -1228,6 +1270,10 @@ def apply_qr_reference_case_correction(extraction: Dict[str, Any], qr_codes: Lis
     for qr in qr_codes:
         qr_data = str(qr.get("data") or "")
         matched = find_case_insensitive_substring(qr_data, current_clean)
+        correction_reason = "casing was corrected"
+        if not matched:
+            matched = find_qr_reference_confusion_substring(qr_data, current_clean)
+            correction_reason = "was corrected using QR data with limited OCR-confusion matching"
         if not matched:
             continue
         matched = normalize_reference_value(matched)
@@ -1239,7 +1285,7 @@ def apply_qr_reference_case_correction(extraction: Dict[str, Any], qr_codes: Lis
             qr_data,
             max(0.88, float(reference_field.get("confidence", 0.0))),
             "reference_qr_case_correction",
-            ["Reference ID casing was corrected from QR data that matched the OCR reference case-insensitively."],
+            [f"Reference ID {correction_reason}."],
             evidence_texts=list(reference_field.get("evidence_texts", [])) + [qr_data],
         )
         extraction["missing_fields"] = [k for k in extraction.get("missing_fields", []) if k != "reference_id"]
@@ -1251,7 +1297,7 @@ def apply_qr_reference_case_correction(extraction: Dict[str, Any], qr_codes: Lis
             w for w in extraction.get("warnings", [])
             if not str(w).startswith("reference_id:")
         ]
-        extraction["warnings"].append("reference_id: Reference ID casing was corrected from QR data.")
+        extraction["warnings"].append(f"reference_id: Reference ID {correction_reason}.")
         return {
             "value": matched,
             "previous_value": current_clean,
