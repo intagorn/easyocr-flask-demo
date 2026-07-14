@@ -182,10 +182,10 @@ def is_bank_line(line: str) -> Optional[str]:
 
 def transfer_status(lines: List[str]) -> Dict[str, Any]:
     for line in lines:
-        if "โอนเงินสำเร็จ" in line:
+        if "โอนเงินสำเร็จ" in line or "จ่ายบิลสำเร็จ" in line:
             return make_field("success", line, 0.95, "success_keyword")
     for line in lines:
-        if "โอนเงิน" in line and "สำ" in line:
+        if ("โอนเงิน" in line or "จ่ายบิล" in line) and "สำ" in line:
             return make_field("success", line, 0.65, "fuzzy_success_keyword", ["Transfer status was fuzzy matched."])
     return make_field(None, None, 0.0, "not_found", ["Transfer status not found."])
 
@@ -793,6 +793,79 @@ def parse_party_block(block_lines: List[str], role: str) -> Dict[str, Any]:
     return result
 
 
+def is_bill_payment_slip(lines: List[str]) -> bool:
+    return any("จ่ายบิล" in (line or "") and "สำ" in (line or "") for line in lines)
+
+
+def is_bill_receiver_identifier(line: str) -> bool:
+    cleaned = re.sub(r"\D", "", line or "")
+    return bool(re.fullmatch(r"\d{14,25}", cleaned))
+
+
+def is_bill_receiver_stop_line(line: str) -> bool:
+    return contains_any(line, [
+        "เลขที่รายการ",
+        "เลขทีรายการ",
+        "เลขที่",
+        "รหัสอ้างอิง",
+        "อ้างอิง",
+        "reference",
+        "จำนวน",
+        "ค่าธรรมเนียม",
+        "สแกน",
+        "ตรวจสอบ",
+        "qr",
+    ])
+
+
+def extract_bill_payment_receiver(lines: List[str], sender: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
+    """Find bill-payment receiver when there is no explicit receiver label.
+
+    K PLUS bill slips can show sender name/bank/account, then merchant name,
+    bill/customer identifier, and only later the transaction reference. Keep
+    this fallback gated to bill-payment slips so long numbers on transfer slips
+    do not become receiver accounts.
+    """
+    warnings = []
+    if not is_bill_payment_slip(lines):
+        return {}, warnings
+
+    sender_account = sender.get("account")
+    if not sender_account:
+        return {}, warnings
+
+    sender_idx = None
+    for i, line in enumerate(lines):
+        if normalize_account(line) == sender_account:
+            sender_idx = i
+            break
+    if sender_idx is None:
+        return {}, warnings
+
+    name_lines = []
+    identifier = None
+    for line in lines[sender_idx + 1:]:
+        if is_bill_receiver_stop_line(line):
+            break
+        if is_bill_receiver_identifier(line):
+            identifier = re.sub(r"\D", "", line)
+            break
+        if is_name_like(line):
+            cleaned = strip_date_time_prefix_before_name(line).strip(" |｜")
+            if cleaned and not is_bank_line(cleaned):
+                name_lines.append(cleaned)
+
+    if not identifier or not name_lines:
+        return {}, warnings
+
+    return {
+        "name": " ".join(name_lines),
+        "bank": "Bill payment / merchant",
+        "account": identifier,
+        "method": "bill_payment_receiver_sequence_rule",
+    }, warnings
+
+
 def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Dict[str, Any], List[str]]:
     """Fallback for slips without explicit จาก/ไปยัง labels.
 
@@ -937,6 +1010,12 @@ def extract_parties(lines: List[str]) -> Tuple[Dict[str, Any], Dict[str, Any], L
         if (not receiver.get("name") or not receiver.get("account")) and seq_receiver:
             receiver = {**receiver, **{k: v for k, v in seq_receiver.items() if v}}
             receiver["method"] = "account_group_sequence_rule"
+
+        if not receiver.get("name") or not receiver.get("account"):
+            bill_receiver, bill_warnings = extract_bill_payment_receiver(lines, sender)
+            warnings.extend(bill_warnings)
+            if bill_receiver:
+                receiver = {**receiver, **{k: v for k, v in bill_receiver.items() if v}}
 
         # Only report fallback warning if it was needed and still failed.
         if (not sender.get("account") or not receiver.get("account")):
