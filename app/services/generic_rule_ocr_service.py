@@ -735,6 +735,7 @@ def clean_party_name(name: str) -> str:
     """Remove known account-type suffixes that OCR can append to names."""
     cleaned = (name or "").strip()
     cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(r"^(?:from|to)\s+(?=(?:นาย|นางสาว|นาง|น\.ส\.)\s*)", "", cleaned, flags=re.I)
     if re.fullmatch(r"(?:secured\s+savings|secured|saving\s+account|savings?)", cleaned, flags=re.I):
         return ""
     cleaned = re.sub(r"\s+(?:secured\s+savings|secured|saving\s+account|savings?)\s*$", "", cleaned, flags=re.I)
