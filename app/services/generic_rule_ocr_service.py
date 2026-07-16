@@ -731,6 +731,16 @@ def strip_date_time_prefix_before_name(line: str) -> str:
     return raw
 
 
+def clean_party_name(name: str) -> str:
+    """Remove known account-type suffixes that OCR can append to names."""
+    cleaned = (name or "").strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    if re.fullmatch(r"(?:secured\s+savings|secured|saving\s+account|savings?)", cleaned, flags=re.I):
+        return ""
+    cleaned = re.sub(r"\s+(?:secured\s+savings|secured|saving\s+account|savings?)\s*$", "", cleaned, flags=re.I)
+    return cleaned.strip()
+
+
 def is_definitely_not_name_line(line: str) -> bool:
     raw = line or ""
     stripped = raw.strip()
@@ -824,10 +834,12 @@ def parse_party_block(block_lines: List[str], role: str) -> Dict[str, Any]:
         if is_name_like(line):
             cleaned_name = strip_date_time_prefix_before_name(line)
             if cleaned_name and not is_definitely_not_name_line(cleaned_name):
-                names.append(cleaned_name)
+                cleaned_name = clean_party_name(cleaned_name)
+                if cleaned_name:
+                    names.append(cleaned_name)
 
     # Prefer the last 1-2 consecutive name-like lines before bank/account.
-    name = " ".join(names).strip() if names else None
+    name = clean_party_name(" ".join(names)) if names else None
 
     result = {
         "name": name,
@@ -906,13 +918,15 @@ def extract_bill_payment_receiver(lines: List[str], sender: Dict[str, Any]) -> T
         if is_name_like(line):
             cleaned = strip_date_time_prefix_before_name(line).strip(" |｜")
             if cleaned and not is_bank_line(cleaned):
-                name_lines.append(cleaned)
+                cleaned = clean_party_name(cleaned)
+                if cleaned:
+                    name_lines.append(cleaned)
 
     if not identifier or not name_lines:
         return {}, warnings
 
     return {
-        "name": " ".join(name_lines),
+        "name": clean_party_name(" ".join(name_lines)),
         "bank": "Bill payment / merchant",
         "account": identifier,
         "method": "bill_payment_receiver_sequence_rule",
@@ -955,7 +969,9 @@ def extract_uob_tmrw_receiver(lines: List[str], sender: Dict[str, Any]) -> Tuple
         if is_name_like(line):
             cleaned = strip_date_time_prefix_before_name(line).strip(" |｜")
             if cleaned and not is_bank_line(cleaned):
-                candidate_name = cleaned
+                cleaned = clean_party_name(cleaned)
+                if cleaned:
+                    candidate_name = cleaned
 
     return {}, warnings
 
@@ -1022,7 +1038,7 @@ def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Di
                 # A Krungsri app/account display line can be both bank and the
                 # sender display name. Keep it local to this account group.
                 if "กรุงศรี" in lines[j] and compact(lines[j]) != compact("กรุงศรี"):
-                    name_lines.insert(0, lines[j].strip(" |｜"))
+                    name_lines.insert(0, clean_party_name(lines[j].strip(" |｜")))
                     break
                 continue
             if is_money_line(lines[j]):
@@ -1035,7 +1051,9 @@ def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Di
             if is_name_like(lines[j]):
                 cleaned_name = strip_date_time_prefix_before_name(lines[j])
                 if cleaned_name and not is_definitely_not_name_line(cleaned_name):
-                    name_lines.insert(0, cleaned_name)
+                    cleaned_name = clean_party_name(cleaned_name)
+                    if cleaned_name:
+                        name_lines.insert(0, cleaned_name)
             elif name_lines:
                 break
             elif is_definitely_not_name_line(lines[j]):
@@ -1043,9 +1061,9 @@ def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Di
 
         # Require at least an account and either bank or name to avoid over-matching noise.
         if bank_value or name_lines:
-            name = " ".join(name_lines).strip() if name_lines else None
+            name = clean_party_name(" ".join(name_lines)) if name_lines else None
             if not name and bank_line_text and "กรุงศรี" in bank_line_text and compact(bank_line_text) != compact("กรุงศรี"):
-                name = bank_line_text.strip(" |｜")
+                name = clean_party_name(bank_line_text.strip(" |｜"))
             groups.append({
                 "name": name,
                 "bank": bank_value,
