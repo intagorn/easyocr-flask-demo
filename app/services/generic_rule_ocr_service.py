@@ -842,6 +842,14 @@ def is_bill_payment_slip(lines: List[str]) -> bool:
     return any("จ่ายบิล" in (line or "") and "สำ" in (line or "") for line in lines)
 
 
+def is_uob_tmrw_slip(lines: List[str]) -> bool:
+    return contains_any("\n".join(lines), BANK_KEYWORDS["uob"]["keywords"])
+
+
+def is_small_noise_line(line: str) -> bool:
+    return bool(re.fullmatch(r"[\W_]{1,4}", (line or "").strip(), flags=re.UNICODE))
+
+
 def is_bill_receiver_identifier(line: str) -> bool:
     cleaned = re.sub(r"\D", "", line or "")
     return bool(re.fullmatch(r"\d{14,25}", cleaned))
@@ -909,6 +917,47 @@ def extract_bill_payment_receiver(lines: List[str], sender: Dict[str, Any]) -> T
         "account": identifier,
         "method": "bill_payment_receiver_sequence_rule",
     }, warnings
+
+
+def extract_uob_tmrw_receiver(lines: List[str], sender: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
+    """Find UOB/TMRW receiver name + long numeric id after sender account."""
+    warnings = []
+    if not is_uob_tmrw_slip(lines):
+        return {}, warnings
+
+    sender_account = sender.get("account")
+    if not sender_account:
+        return {}, warnings
+
+    sender_idx = None
+    for i, line in enumerate(lines):
+        if normalize_account(line) == sender_account:
+            sender_idx = i
+            break
+    if sender_idx is None:
+        return {}, warnings
+
+    candidate_name = None
+    for line in lines[sender_idx + 1:]:
+        if is_small_noise_line(line):
+            continue
+        if is_bill_receiver_identifier(line):
+            identifier = re.sub(r"\D", "", line)
+            if candidate_name:
+                return {
+                    "name": candidate_name,
+                    "account": identifier,
+                    "method": "uob_tmrw_receiver_sequence_rule",
+                }, warnings
+            break
+        if is_bill_receiver_stop_line(line) or has_thai_date_pattern(line) or has_time_pattern(line):
+            break
+        if is_name_like(line):
+            cleaned = strip_date_time_prefix_before_name(line).strip(" |｜")
+            if cleaned and not is_bank_line(cleaned):
+                candidate_name = cleaned
+
+    return {}, warnings
 
 
 def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Dict[str, Any], List[str]]:
@@ -1055,6 +1104,12 @@ def extract_parties(lines: List[str]) -> Tuple[Dict[str, Any], Dict[str, Any], L
         if (not receiver.get("name") or not receiver.get("account")) and seq_receiver:
             receiver = {**receiver, **{k: v for k, v in seq_receiver.items() if v}}
             receiver["method"] = "account_group_sequence_rule"
+
+        if not receiver.get("name") or not receiver.get("account"):
+            uob_receiver, uob_warnings = extract_uob_tmrw_receiver(lines, sender)
+            warnings.extend(uob_warnings)
+            if uob_receiver:
+                receiver = {**receiver, **{k: v for k, v in uob_receiver.items() if v}}
 
         if not receiver.get("name") or not receiver.get("account"):
             bill_receiver, bill_warnings = extract_bill_payment_receiver(lines, sender)
