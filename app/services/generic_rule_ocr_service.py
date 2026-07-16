@@ -33,6 +33,10 @@ BANK_KEYWORDS = {
         "display_name": "TTB / ทหารไทยธนชาต",
         "keywords": ["ttb", "ทหารไทย", "ธนชาต"]
     },
+    "uob": {
+        "display_name": "UOB / TMRW",
+        "keywords": ["uob", "tmrw", "iil uob", "u0b"]
+    },
     "gsb": {
         "display_name": "GSB / MyMo / ธนาคารออมสิน",
         "keywords": ["gsb", "mymo", "ธนาคารออมสิน", "ออมสิน"]
@@ -382,8 +386,33 @@ def amount_top_fallback(lines: List[str]) -> Dict[str, Any]:
     return make_field(None, None, 0.0, "not_found", ["amount not found by top-position fallback."])
 
 
+def amount_thb_fallback(lines: List[str]) -> Dict[str, Any]:
+    """Fallback for UOB/TMRW-style lines such as "thb 50.00"."""
+    fee_keywords = ["ค่าธรรมเนียม", "ธรรมเนียม", "fee", "ฟรี"]
+    for i, line in enumerate(lines[:10]):
+        if "thb" not in (line or "").lower():
+            continue
+        if contains_any(line, fee_keywords):
+            continue
+        if i > 0 and contains_any(lines[i - 1], fee_keywords):
+            continue
+
+        val, money_warnings = find_money_with_warnings(line)
+        if val is None:
+            continue
+
+        warnings = list(money_warnings)
+        warnings.append("Amount found from THB currency line without explicit amount label; review manually.")
+        return make_field(val, line, 0.72, "amount_thb_currency_fallback", warnings)
+
+    return make_field(None, None, 0.0, "not_found", ["amount not found by THB currency fallback."])
+
+
 def amount(lines: List[str]) -> Dict[str, Any]:
     field = find_money_near_label(lines, ["จำนวนเงิน", "จำนวน", "ยอดเงิน", "amount"], "amount")
+    if field.get("value") not in [None, ""]:
+        return field
+    field = amount_thb_fallback(lines)
     if field.get("value") not in [None, ""]:
         return field
     return amount_top_fallback(lines)
@@ -464,7 +493,7 @@ def find_thai_date_match(text: str):
 
     # Strong BE-year clue: 2540-2599.
     m = re.search(
-        r"(?<!\d)(\d{1,2})\s*([0-9ก-๙A-Za-z.]{1,8})\s*((?:25[4-9]\d)|(?:\d{2}))(?!\d)",
+        r"(?<!\d)(\d{1,2})\s*([0-9ก-๙A-Za-z.]{1,8})\s*((?:25[4-9]\d)|(?:20\d{2})|(?:\d{2}))(?!\d)",
         text,
     )
     if m:
@@ -512,6 +541,22 @@ def extract_date(lines: List[str]) -> Dict[str, Any]:
                     corrected = f"{day:02d} {canonical_month} {year_text}"
                     warnings = month_warnings + [f"Corrected date guess: {corrected}"] if corrected != combined.strip() else []
                     return make_field(corrected, combined, 0.68, "thai_date_split_line_ocr_corrected", warnings, evidence_texts=[combined, corrected])
+
+        # UOB/TMRW OCR can split the date as:
+        #   01
+        #   เม.ย. 2024
+        # Keep this adjacent-line-only to avoid turning arbitrary counters into dates.
+        if i + 1 < len(lines) and re.fullmatch(r"\d{1,2}", line.strip()):
+            m = re.fullmatch(r"\s*([0-9ก-๙A-Za-z.]{1,8})\s*((?:25[4-9]\d)|(?:20\d{2})|(?:\d{2}))\s*", lines[i + 1])
+            if m:
+                day = int(line.strip())
+                month_token = m.group(1)
+                year_text = m.group(2)
+                month, canonical_month, month_warnings = normalize_month_token(month_token)
+                if month:
+                    corrected = f"{day:02d} {canonical_month} {year_text}"
+                    warnings = month_warnings + [f"Corrected split date guess: {corrected}"]
+                    return make_field(corrected, f"{line} {lines[i + 1]}", 0.70, "thai_date_day_month_year_split_lines", warnings, evidence_texts=[line, lines[i + 1], corrected])
 
     return make_field(None, None, 0.0, "not_found", ["Date not found."])
 
