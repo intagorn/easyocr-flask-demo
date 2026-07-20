@@ -45,7 +45,7 @@ from app.services.generic_rule_ocr_service import run_generic_rule_ocr  # noqa: 
 
 
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-DEFAULT_MAX_IMAGES = 500
+DEFAULT_MAX_IMAGES = 1000
 DEFAULT_MAX_TOTAL_EXTRACTED_MB = 1024
 
 SUMMARY_FIELDS = [
