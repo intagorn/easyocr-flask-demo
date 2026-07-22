@@ -347,22 +347,23 @@ def find_input_image_path(job_id: str, output_stem: str, filename: Optional[str]
     """Find processed input image for preview.
 
     The CLI extracts images to work/input_images and uses safe output stems.
-    This function tries filename first, then output stem.
+    Prefer output_stem because Thai filenames can sanitize to generic/numeric
+    names such as "9.jpg", which may belong to a different row.
     """
     folder = job_dir(job_id) / "work" / "input_images"
     if not folder.exists():
         return None
 
     candidates = []
-    if filename:
-        safe_filename = secure_filename(filename)
-        if safe_filename:
-            candidates.append(folder / safe_filename)
-
     safe_stem = secure_filename(output_stem or "")
     if safe_stem:
         for ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp"]:
             candidates.append(folder / f"{safe_stem}{ext}")
+
+    if filename:
+        safe_filename = secure_filename(filename)
+        if safe_filename:
+            candidates.append(folder / safe_filename)
 
     for path in candidates:
         if path.exists() and path.is_file():
