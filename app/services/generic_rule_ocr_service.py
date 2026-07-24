@@ -33,6 +33,10 @@ BANK_KEYWORDS = {
         "display_name": "TTB / ทหารไทยธนชาต",
         "keywords": ["ttb", "ทหารไทย", "ธนชาต"]
     },
+    "kkp": {
+        "display_name": "Kiatnakin Phatra / KKP / ธนาคารเกียรตินาคินภัทร",
+        "keywords": ["kkp", "kiatnakin", "phatra", "เกียรตินาคิน", "เกียรตินาคินภัทร", "ธ.เกียรตินาคินภัทร"]
+    },
     "uob": {
         "display_name": "UOB / TMRW",
         "keywords": ["uob", "tmrw", "iil uob", "u0b"]
@@ -977,6 +981,51 @@ def extract_uob_tmrw_receiver(lines: List[str], sender: Dict[str, Any]) -> Tuple
     return {}, warnings
 
 
+def is_thai_title_line(line: str) -> bool:
+    return bool(re.fullmatch(r"(นาย|นางสาว|นาง|น\.ส\.)", (line or "").strip()))
+
+
+def is_party_fragment_noise(line: str) -> bool:
+    stripped = (line or "").strip(" |｜")
+    if not stripped:
+        return True
+    if is_thai_title_line(stripped):
+        return False
+    if is_small_noise_line(stripped):
+        return True
+    thai_count = len(re.findall(r"[ก-๙]", stripped))
+    latin_count = len(re.findall(r"[A-Za-z]", stripped))
+    digit_count = len(re.findall(r"\d", stripped))
+    if digit_count:
+        return True
+    if thai_count and thai_count <= 2 and latin_count == 0:
+        return True
+    if thai_count <= 1 and latin_count >= 2:
+        return True
+    if re.fullmatch(r"[.ก-๙]{1,4}", stripped) and thai_count <= 2:
+        return True
+    return False
+
+
+def collect_party_name_between(lines: List[str], start_idx: int, end_idx: int) -> List[str]:
+    """Collect name/company lines between a nearby bank line and account line."""
+    name_lines = []
+    for line in lines[max(0, start_idx):max(0, end_idx)]:
+        if is_account_line(line) or is_money_line(line):
+            break
+        if contains_any(line, ["reference", "รหัส", "อ้างอิง", "เลขที่", "จำนวน", "ค่าธรรมเนียม", "วันที่"]):
+            break
+        if is_bank_line(line):
+            continue
+        if is_party_fragment_noise(line):
+            continue
+        if is_name_like(line) or is_thai_title_line(line):
+            cleaned = clean_party_name(strip_date_time_prefix_before_name(line).strip(" |｜"))
+            if cleaned:
+                name_lines.append(cleaned)
+    return name_lines
+
+
 def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Dict[str, Any], List[str]]:
     """Fallback for slips without explicit จาก/ไปยัง labels.
 
@@ -1007,16 +1056,18 @@ def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Di
 
         bank_value = None
         bank_line_text = None
+        bank_line_index = None
         name_lines = []
 
         # Search for a nearby bank/channel line above or below the account.
-        for j in range(account_idx - 1, max(-1, account_idx - 5), -1):
+        for j in range(account_idx - 1, max(-1, account_idx - 10), -1):
             if is_account_line(lines[j]):
                 break
             bank_candidate = is_bank_line(lines[j])
             if bank_candidate:
                 bank_value = bank_candidate
                 bank_line_text = lines[j]
+                bank_line_index = j
                 break
 
         if not bank_value:
@@ -1027,11 +1078,19 @@ def extract_account_group_sequence(lines: List[str]) -> Tuple[Dict[str, Any], Di
                 if bank_candidate:
                     bank_value = bank_candidate
                     bank_line_text = lines[j]
+                    bank_line_index = j
                     break
+
+        if bank_line_index is not None and bank_line_index < account_idx:
+            name_lines = collect_party_name_between(lines, bank_line_index + 1, account_idx)
+            if not name_lines and bank_line_index > 0:
+                name_lines = collect_party_name_between(lines, max(0, bank_line_index - 4), bank_line_index)
 
         # Collect 1-2 nearby name lines above the account. Skip bank lines but
         # stop at another account, amount, reference, or clear non-name section.
         for j in range(account_idx - 1, max(-1, account_idx - 5), -1):
+            if name_lines:
+                break
             if is_account_line(lines[j]):
                 break
             bank_candidate = is_bank_line(lines[j])
